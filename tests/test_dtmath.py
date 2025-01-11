@@ -7,7 +7,7 @@ Created on Sat Jan 11 22:26:04 2025
 """
 
 
-from cnav.dtmath import is_gregorian, JD
+from cnav.dtmath import *
 
 
 def test_is_gregorian():
@@ -45,3 +45,10 @@ def test_JD():
     assert(JD(-1000,  2, 29)   == 1355866.5 )
     assert(JD(-1001,  8, 17.9) == 1355671.4 )
     assert(JD(-4712,  1, 1.5)  == 0.0       )
+
+def test_MJD():
+    assert(MJD(1858, 11, 17)   == 0 )
+
+def test_invariant():
+    pass
+print(RJD(2400000.5))
