@@ -15,9 +15,9 @@ def test_numba_installed():
     import numba
 
 def test_cnumba():
-    import inpop.cnumba
+    import cnav.cnumba
 
 def test_acc():
-    import inpop.cnumba
-    assert(inpop.cnumba.numba_acc)
+    import cnav.cnumba
+    assert(cnav.cnumba.numba_acc)
 
