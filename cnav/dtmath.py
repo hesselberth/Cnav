@@ -3,11 +3,11 @@
 """
 Created on Sat Jan 11 20:57:17 2025
 
-@author: hessel
+@author: Marcel Hesselberth
 """
 
 import numpy as np
-from cnumba import cnjit
+from .cnumba import cnjit
 
 
 """
@@ -24,9 +24,12 @@ The JD algorithm follows Meeus.
 
 """
 
+@cnjit(signature_or_function='boolean(i4, i4, i4)')
 def is_gregorian(YYYY:int, MM:int, DD:int) -> bool:
     """
     Check if the date is in the Gregorian calendar.
+    
+    Assumes that year, month and day are valid.
 
     Parameters
     ----------
