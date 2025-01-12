@@ -49,7 +49,7 @@ def is_gregorian(YYYY:int, MM:int, DD:int) -> bool:
     return (YYYY + MM/12) * 365.25 + DD > 578140
 
 @cnjit(signature_or_function='f8(i4, i4, f8)')
-def JD(YYYY:int, MM:int, DD:int) -> float:
+def JD(YYYY:int, MM:int, DD:float) -> float:
     """
     Julian day number.
     
@@ -70,11 +70,11 @@ def JD(YYYY:int, MM:int, DD:int) -> float:
     -------
     float
            The corresponding Julian day number.
-           -1 upon error.
 
     """
-    if YYYY < -4712:
-        return -1
+    assert (YYYY >= -4712)
+    if YYYY == 1582 and MM == 10:
+        assert (DD <=4 or DD >= 15)
     if MM <= 2:
         Y  = YYYY - 1
         M  = MM + 12
@@ -114,6 +114,7 @@ def MJD(YYYY:int, MM:int, DD:int) -> float:
 def RJD(jd:float) -> (int, int, int, float):
     """
     Reverse Julian Day. Compute date (YYYY, MM, DD) from jd.
+    Computes the time F as a day fraction as well.
 
     Parameters
     ----------
@@ -154,3 +155,6 @@ def RJD(jd:float) -> (int, int, int, float):
     else:
         YYYY = C - 4715
     return YYYY, MM, DD, F
+
+def RMJD(mjd):
+    return(RJD(mjd+2400000.5))

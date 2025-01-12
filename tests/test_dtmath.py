@@ -8,12 +8,13 @@ Created on Sat Jan 11 22:26:04 2025
 
 
 from cnav.dtmath import *
+import pytest
 
 
 def test_is_gregorian():
     assert(is_gregorian(-5000, 1, 1) is False)
     assert(is_gregorian(-4712, 1, 1) is False)
-    assert(is_gregorian(0, 12, 26) is False)
+    assert(is_gregorian(0, 12, 25) is False)
     assert(is_gregorian(1000, 12, 31) is False)
     assert(is_gregorian(1582, 1, 1) is False)
     assert(is_gregorian(1582, 6, 15) is False)
@@ -48,7 +49,26 @@ def test_JD():
 
 def test_MJD():
     assert(MJD(1858, 11, 17)   == 0 )
+    with pytest.raises(AssertionError) as excinfo:
+        skip = JD(1582, 10, 10)
 
-def test_invariant():
-    pass
-print(RJD(2400000.5))
+def test_JD_RJD_invariant():
+    for i in range(1721057, 2634166):  # year 0 until 2500
+        jd = i + 0.5
+        YYYY, MM, DD, F = RJD(jd)
+        jd2 = JD(YYYY, MM, DD)
+        assert(jd==jd2)
+        assert(F == 0)
+
+def test_calendar_reform():
+        before = JD(1582, 10, 4 )
+        after  = JD(1582, 10, 15)
+        for DD in range(5, 15):
+            with pytest.raises(AssertionError) as excinfo:
+                skip = JD(1582, 10, DD)
+
+def test_RMJD():
+    assert(RMJD(0) == (1858, 11, 17, 0))
+    
+    
+    
