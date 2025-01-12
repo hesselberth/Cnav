@@ -7,7 +7,7 @@ Created on Sat Jan 11 20:57:17 2025
 """
 
 import numpy as np
-from .constants import MJD0
+from .constants import MJD0, SPD, wdays
 from .cnumba import cnjit
 
 
@@ -120,7 +120,7 @@ def RJD(jd:float) -> (int, int, int, float):
     Parameters
     ----------
     jd : float
-         Julian day jd. jd must be positive,
+         Julian day. jd must be positive (or zero),
 
     Returns
     -------
@@ -158,6 +158,26 @@ def RJD(jd:float) -> (int, int, int, float):
     return YYYY, MM, DD, F
 
 def RMJD(mjd):
+    """
+    Reverse Modified Julian Day. Compute date (YYYY, MM, DD) from the mjd.
+    Computes the time F as a day fraction as well.
+
+    Parameters
+    ----------
+    mjd : float
+         Modified Julian day.
+
+    Returns
+    -------
+    YYYY : int
+           Year.
+    MM   : int
+           Month.
+    DD   : int
+           Day.
+    F    : float
+           Day fraction.
+    """
     return(RJD(mjd + MJD0))
 
 def TJC(tt, tt2=0.0):
@@ -168,3 +188,28 @@ def BY(tt_jd):
     raise(NotImplementedError("Besselian year function needs checking"))
     return 1900.0 + (tt_jd - 2415020.31352) / 365.242198781
 
+def TF(hh, mm, ss):
+    ssum = (ss + mm * 60) + hh * 3600
+    return ssum / SPD
+
+# 0 is sunday, 1 is monday etc. Compatible with constants.py.
+def weekday_nr(jd):    # jd is a julian day number without time
+    return int((jd+1.5)) % 7
+
+# Three character day string
+def weekday_str(jd):
+    return wdays[weekday_nr(jd)]
+
+# find value in L less than or equal to jd
+def bisect(l, jd): 
+    if l[0] > jd:       # no smaller value exists, answer undefined
+        return None
+    left = 0
+    right = len(l)
+    while right - left > 1:
+        mid = (right + left) // 2
+        if l[mid] <= jd:
+            left = mid
+        else:
+            right = mid
+    return l[left]

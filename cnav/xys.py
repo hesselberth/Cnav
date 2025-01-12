@@ -12,6 +12,12 @@ from .cnumba import cnjit
 from .constants import UAS2RAD, AS2RAD
 import cnav.iersch5 as iersch5
 
+# Silence numba dot product warning if arrays are not contiguous
+from numba.core.errors import NumbaPerformanceWarning
+import warnings
+warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
+
+
 
 # For evaluating 4th and 5th degree polynomials
 powers_4 = np.array([0, 1, 2, 3, 4])
@@ -73,7 +79,7 @@ def Phi(tjc):
     A[5:13] = np.dot(T[0:2], arg_6_13)
     A[13]   = np.dot(T[1:3], arg_14)
     A *= AS2RAD
-    return A
+    return np.ascontiguousarray(A)
 
 
 class XYs06a:

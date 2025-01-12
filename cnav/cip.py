@@ -38,10 +38,11 @@ def Mcio(tjc):
     return M
 
 
-def ERA(UT1_2000):  # UT1 is Julian UT1 date since JD2000
-    T_u = UT1_2000
-    f = UT1_2000 % 1  # TODO: check for negative UT1_2000
-    turns = (f + 0.7790572732640 + 0.00273781191135448 * T_u) % 1
+def ERA(UT1_2000):  # Julian UT1 date since JD2000
+    date, fraction = UT1_2000
+    T_u = fraction + date
+    f = fraction % 1 + date % 1 # TODO: check for negative UT1_2000
+    turns = ((f + 0.7790572732640) + 0.00273781191135448 * T_u) % 1
     return PI2 * turns
 
 

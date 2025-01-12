@@ -66,7 +66,7 @@ def test_ut1():
     assert(abs(ut1_mjd - ref) * SPD < 1e-10)  # time error well below 1ns
 
 # # continue with reference ut1mutc
-ut1_2000 = (ut1mutc / SPD + utc_time) + (utc_jdate - JD2000)
+ut1_2000 = (ut1mutc / SPD + utc_time, utc_jdate - JD2000)
 
 def test_X():
     print("XYZs")
@@ -116,7 +116,7 @@ def test_Mcio():
     
 def test_ERA():
     print("ERA")
-    ut1_2000 = (ut1mutc / SPD + utc_time) + (utc_jdate - JD2000)
+    #ut1_2000 = (ut1mutc / SPD + utc_time) + ()
     era = ERA(ut1_2000)
     print(f"ERA = {era/DEG2RAD} degrees")
     ref = 76.265431053522
