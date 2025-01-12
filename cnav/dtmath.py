@@ -7,6 +7,7 @@ Created on Sat Jan 11 20:57:17 2025
 """
 
 import numpy as np
+from .constants import MJD0
 from .cnumba import cnjit
 
 
@@ -108,7 +109,7 @@ def MJD(YYYY:int, MM:int, DD:int) -> float:
         Modified Julian day for the geven date
 
     """
-    return JD(YYYY, MM, DD) - 2400000.5
+    return JD(YYYY, MM, DD) - MJD0
 
 @cnjit(signature_or_function='Tuple((i4, i4, i4, f8))(f8)')
 def RJD(jd:float) -> (int, int, int, float):
@@ -157,4 +158,4 @@ def RJD(jd:float) -> (int, int, int, float):
     return YYYY, MM, DD, F
 
 def RMJD(mjd):
-    return(RJD(mjd+2400000.5))
+    return(RJD(mjd + MJD0))
