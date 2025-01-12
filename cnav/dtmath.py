@@ -159,3 +159,12 @@ def RJD(jd:float) -> (int, int, int, float):
 
 def RMJD(mjd):
     return(RJD(mjd + MJD0))
+
+def TJC(tt, tt2=0.0):
+    return ((tt - 2451545.0) + tt2) / 36525
+
+# Besselian year, argument is full TT julian date
+def BY(tt_jd):
+    raise(NotImplementedError("Besselian year function needs checking"))
+    return 1900.0 + (tt_jd - 2415020.31352) / 365.242198781
+
