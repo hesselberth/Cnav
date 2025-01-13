@@ -7,10 +7,9 @@ Created on Mon Dec 26 20:28:19 2024
 """
 
 import numpy as np
-from .constants import AS2RAD, UAS2RAD, PI, PI2, DEG2RAD
+from .constants import AS2RAD, UAS2RAD, PI, PI2, DEG2RAD, JD2000
 from .rot3d import *
 from .xys import XYs06 as XYs, PFW06_gamma_phi as PFW
-
 
 # Celestial to terrestrial coordinate transformations based on the X, Y
 # components of the CIP unit vector and on quantity s, the CIO locator.
@@ -38,18 +37,19 @@ def Mcio(tjc):
     return M
 
 
-def ERA(UT1_2000):  # Julian UT1 date since JD2000
-    date, fraction = UT1_2000
-    T_u = fraction + date
-    f = fraction % 1 + date % 1 # TODO: check for negative UT1_2000
-    turns = ((f + 0.7790572732640) + 0.00273781191135448 * T_u) % 1
+def ERA(UT1_jd2):  # Julian UT1 date since JD2000
+    Tu_date, Tu_fraction = UT1_jd2
+    Du_date, Du_fraction = Tu_date - JD2000, Tu_fraction
+    f = Tu_fraction + Tu_date % 1
+    Du = Du_fraction + Du_date
+    turns = ((f + 0.7790572732640) + 0.00273781191135448 * Du) % 1
     return PI2 * turns
 
 
-def R(ut1_2000, tjc, mcio = None):
+def R(UT1_jd2, tjc, mcio = None):
     if not mcio:
         mcio = Mcio(tjc)
-    return R3(ERA(ut1_2000)) @ mcio
+    return R3(ERA(UT1_jd2)) @ mcio
 
 
 # classical equinox based NPB matrix and EO
@@ -92,6 +92,6 @@ def EO(tjc):
     return Mclass_EO(tjc)[1]
 
 
-def GST(UT1_2000, eo):
-        return ERA(UT1_2000) - eo
+def GST(UT1_jd2, eo):
+        return ERA(UT1_jd2) - eo
 

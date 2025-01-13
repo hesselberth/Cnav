@@ -7,9 +7,9 @@ Created on Thu Dec 27 18:38:37 2024
 """
 
 
-from cnav.constants import AS2RAD, SPD, MJD0, JD2000
 import numpy as np
-from cnav.cip import *
+from cnav.constants import AS2RAD, DEG2RAD, SPD, MJD0
+from cnav.cip import Mcio, ERA, R, Mclass_EO, Mclass, GST, XYs, PFW
 from cnav.dtmath import JD, MJD, TJC, TF
 from cnav.webdata import leapseconds, finals
 
@@ -30,7 +30,7 @@ utc_mjd = MJD(*utc_date)
 utc_time = TF(*utc_time)
 tai_time = utc_time + TAImUTC_2006 / SPD
 tt_time = tai_time + TTmTAI / SPD
-
+print("tt", utc_mjd)
 
 def test_leapseconds():
     TAImUTC = leapseconds()
@@ -66,7 +66,7 @@ def test_ut1():
     assert(abs(ut1_mjd - ref) * SPD < 1e-10)  # time error well below 1ns
 
 # # continue with reference ut1mutc
-ut1_2000 = (ut1mutc / SPD + utc_time, utc_jdate - JD2000)
+ut1_2000 = (utc_jdate, ut1mutc / SPD + utc_time)
 
 def test_X():
     print("XYZs")

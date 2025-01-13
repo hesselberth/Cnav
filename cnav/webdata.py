@@ -14,8 +14,6 @@ from cnav.dtmath import JD, MJD, RJD, RMJD, bisect
 from configparser import ConfigParser
 
 
-# TODO return zero when dut or leaps not available
-
 path, ext = os.path.splitext(__file__)
 config_filename = f"{path}.ini"
 config = ConfigParser()
@@ -245,6 +243,7 @@ class Leapseconds(URL_data):
         if last_leap:
             offset, mjd0, factor = self.info[last_leap]
             return offset + (mjd - mjd0) * factor
+        print("Warning: leapsecond value not in table. Using 0.")
         return 0
 
 def finals():

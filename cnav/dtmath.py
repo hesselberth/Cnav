@@ -185,14 +185,13 @@ def TJC(tt, tt2=0.0):
 
 # Besselian year, argument is full TT julian date
 def BY(tt_jd):
-    raise(NotImplementedError("Besselian year function needs checking"))
     return 1900.0 + (tt_jd - 2415020.31352) / 365.242198781
 
 def TF(hh, mm, ss):
     ssum = (ss + mm * 60) + hh * 3600
     return ssum / SPD
 
-# 0 is sunday, 1 is monday etc. Compatible with constants.py.
+# 0 is sunday, 1 is monday etc.
 def weekday_nr(jd):    # jd is a julian day number without time
     return int((jd+1.5)) % 7
 

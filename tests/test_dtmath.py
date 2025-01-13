@@ -70,5 +70,40 @@ def test_calendar_reform():
 def test_RMJD():
     assert(RMJD(0) == (1858, 11, 17, 0))
     
+def test_TJC():
+    tjc = TJC(MJD0, 53750.8928551388888888)
+    ref = 0.06040774415164651
+    err = abs(tjc - ref)
+    assert(err < 1e-7)
+
+def test_BY():
+    jd = 50 * 365.242198781 + 2415020.31352
+    by = BY(jd)
+    ref = 1950
+    err = abs(by - ref)
+    assert(err < 1e-7)
+
+def test_TF():
+    assert ( TF(24, 0, 0) == 1 )
+
+def test_weekday_nr():
+    jd = JD(2025, 1, 12)
+    assert( weekday_nr(jd) == 0 )
+
+def test_weekday_str():
+    jd = JD(2025, 1, 11)
+    assert( weekday_str(jd) == "Sat" )
+
+def test_bisect(): 
+    l = [-7, -1, 2, 4, 9, 16, 25, 32, 64, 128, 255]
+    assert( bisect(l, -10) == None )
+    assert( bisect(l, -7 ) == -7 )
+    assert( bisect(l, 255 ) == 255 )
+    assert( bisect(l, 19 ) == 16 )
+    assert( bisect(l, 30 ) == 25 )
+    assert( bisect(l, 45 ) == 32 )
+    assert( bisect(l, 17 ) == 16 )
+
+    
     
     

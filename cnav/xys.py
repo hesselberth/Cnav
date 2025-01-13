@@ -18,7 +18,6 @@ import warnings
 warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
 
 
-
 # For evaluating 4th and 5th degree polynomials
 powers_4 = np.array([0, 1, 2, 3, 4])
 powers_5 = np.array([0, 1, 2, 3, 4, 5])
