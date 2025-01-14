@@ -89,8 +89,8 @@ def JD(YYYY:int, MM:int, DD:float) -> float:
         B = 2 - A + int(A/4)
     return int(365.25*(Y+4716)) + int(30.6001*(M+1)) + DD + B - 1524.5
 
-@cnjit(signature_or_function='f8(i4, i4, i4)')
-def MJD(YYYY:int, MM:int, DD:int) -> float:
+@cnjit(signature_or_function='i4(i4, i4, i4)')
+def MJD(YYYY:int, MM:int, DD:int) -> int:
     """
     Modified Julian day of a valid date.
 
@@ -105,11 +105,25 @@ def MJD(YYYY:int, MM:int, DD:int) -> float:
 
     Returns
     -------
-    float
+    int
         Modified Julian day for the geven date
 
     """
-    return JD(YYYY, MM, DD) - MJD0
+    assert (YYYY >= -4712)
+    if YYYY == 1582 and MM == 10:
+        assert (DD <=4 or DD >= 15)
+    if MM <= 2:
+        Y  = YYYY - 1
+        M  = MM + 12
+    else:
+        Y = YYYY
+        M = MM
+    A = int(Y/100)
+    if (YYYY + MM/12) * 365.25 + DD < 578140:
+        B = 0
+    else:
+        B = 2 - A + int(A/4)
+    return int(365.25*(Y+4716)) + int(30.6001*(M+1)) + DD + B - 2401525
 
 @cnjit(signature_or_function='Tuple((i4, i4, i4, f8))(f8)')
 def RJD(jd:float) -> (int, int, int, float):
