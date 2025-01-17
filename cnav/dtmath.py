@@ -192,7 +192,7 @@ def RMJD(mjd):
     F    : float
            Day fraction.
     """
-    return(RJD(mjd + MJD0))
+    return(RJD(mjd + MJD0)[:3])
 
 def TJC(tt, tt2=0.0):
     return ((tt - 2451545.0) + tt2) / 36525
