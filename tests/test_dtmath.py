@@ -92,7 +92,7 @@ def test_weekday_nr():
 
 def test_weekday_str():
     jd = JD(2025, 1, 11)
-    assert( weekday_str(jd) == "Sat" )
+    assert( weekday_str(jd) == "Saturday" )
 
 def test_bisect(): 
     l = [-7, -1, 2, 4, 9, 16, 25, 32, 64, 128, 255]
