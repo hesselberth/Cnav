@@ -49,6 +49,41 @@ def is_gregorian(YYYY:int, MM:int, DD:int) -> bool:
     """
     return (YYYY + MM/12) * 365.25 + DD > 578140
 
+@cnjit(signature_or_function='boolean(i4)')
+def is_leapyear(YYYY:int) -> bool:
+    """
+    Checks if a year is a leap year (february has 29 days).
+    This works both in the Julian and the Gregorian calendar.
+
+    Parameters
+    ----------
+    YYYY : Int
+        Year from -4712 to 9999
+
+    Returns
+    -------
+    leapyear : Boolean
+        True if YYYY is a leap year.
+
+    """
+    if is_gregorian(YYYY, 2, 28):
+        if YYYY % 4 == 0:               # possibly leap
+            if YYYY % 400 == 0:         # leap
+                leapyear = True
+            else:
+                if YYYY % 100 == 0:     # common
+                    leapyear = False
+                else:                   # leap
+                    leapyear = True
+        else:
+            leapyear = False
+    else:                               # julian
+        if YYYY % 4 == 0:               # julian leap year
+            leapyear = True
+        else:
+            leapyear = False
+    return leapyear
+
 @cnjit(signature_or_function='f8(i4, i4, f8)')
 def JD(YYYY:int, MM:int, DD:float) -> float:
     """

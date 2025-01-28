@@ -127,6 +127,9 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
         days, ns = divmod(total_nanoseconds, _DAY)
         seconds, ns = divmod(ns, _SEC)
         microseconds, ns = divmod(ns, _USEC)
+        
+        if abs(days) > 999999999:
+            raise OverflowError(f"timedelta # of days is too large: {days}")
 
         self = datetime.timedelta.__new__(cls, days=days, seconds=seconds, microseconds=microseconds)
         self._total_nanoseconds = Decimal(total_nanoseconds)
@@ -142,7 +145,10 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
         hours, seconds = divmod(self.seconds, 3600)
         minutes, seconds = divmod(seconds, 60)
         if self.days:
-            l.append(f"{self.days} days, ")
+            if self.days in [-1, 1]:
+                l.append(f"{self.days} day, ")
+            else:
+                l.append(f"{self.days} days, ")
         l.append(f"{hours}:{minutes:02d}:{seconds:02d}")
         if ns:
             ns = f".{ns:09d}"
@@ -227,19 +233,21 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
 
     def __truediv__(self, other):
         if isinstance(other, (int, float)):
-            return TimeDelta(nanoseconds=self._total_nanoseconds/Decimal(other))
+            return TimeDelta(nanoseconds = self._total_nanoseconds / Decimal(other))
         if isinstance(other, (TimeDelta, timedelta)):
             return self._total_nanoseconds / self.total_nanoseconds(other)
         raise (TypeError(f"Incompatible types for / : <{self.cname}>, {type(other)}"))
 
+    # TODO !!! beware: decimal can have negative remainders after mod! switch to int?
     def __mod__(self, other):
         if isinstance(other, (TimeDelta, timedelta)):
-            return TimeDelta(nanoseconds=self._total_nanoseconds%self.total_nanoseconds(other))
+            print(self._total_nanoseconds // self.total_nanoseconds(other))
+            return TimeDelta(nanoseconds = int(self._total_nanoseconds) % int(self.total_nanoseconds(other)))
         raise (TypeError(f"Incompatible types for % : <{self.cname}>, {type(other)}"))
 
     def __divmod__(self, other):
         if isinstance(other, (TimeDelta, timedelta)):
-            div, mod = Decimal.__divmod__(self._total_nanoseconds, self.total_nanoseconds(other))
+            div, mod = divmod(int(self._total_nanoseconds), int(self.total_nanoseconds(other)))
             return int(div), TimeDelta(nanoseconds=mod)
         raise (TypeError(f"Incompatible types for divmod : <{self.cname}>, {type(other)}"))
 
@@ -249,6 +257,7 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
     def __eq__(self, other):
         if isinstance(other, (TimeDelta, timedelta)):
             return self._total_nanoseconds == self.total_nanoseconds(other)
+        return False
         raise (TypeError(f"Incompatible types for comparison : <{self.cname}>, {type(other)}"))
 
     def __gt__(self, other):
@@ -265,6 +274,10 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
     def __reduce__(self):
         return (self.__class__, self._getstate())
 
+# timedelta.min = timedelta(-999999999)
+# timedelta.max = timedelta(days=999999999, hours=23, minutes=59, seconds=59,
+#                           nanoseconds=999999999)
+# TimeDelta.resolution = TimeDelta(nanoseconds=1)
 
 class Date(metaclass = DTMeta):
     #__slots__ = '_year', '_month', '_day', '_hashcode', "cname", "mjd"
@@ -459,6 +472,13 @@ class Date(metaclass = DTMeta):
     def __repr__(self):
         return f"{self.cname}({self.year}, {self.month}, {self.day})"
 
+    def __format__(self, fmt):
+        if not isinstance(fmt, str):
+            raise TypeError(f"must be str, not {type(fmt)}")
+        if len(fmt) != 0:
+            return self.strftime(fmt)
+        return str(self)
+
     def __sub__(self, other):
         if isinstance(other, int):
             return Date(*RMJD(self.mjd - other))
@@ -505,7 +525,7 @@ class TZInfo:
     def fromutc(self, dt):
         pass
 
-TimeDelta.resolution = TimeDelta(nanoseconds=1)
+
 
 
 class Time(metaclass=DTMeta):
@@ -815,6 +835,10 @@ if __name__ == '__main__':
     print(datetime.date(*d).toordinal())
     print(datetime.datetime.today().__format__("%y"))
     print("{:%y %m}".format(Date(-2000, 1, 2)))
+    minute = TimeDelta(minutes=1)
+    t = TimeDelta(minutes=-2, seconds=30)
+    print(repr(divmod(t, minute)))
+    print(repr(TimeDelta(seconds=1) * 0.6112295), repr(TimeDelta(nanoseconds=611229500)))
     # print(time.tzname, time.localtime().tm_isdst, time.localtime().tm_zone)
     # print(time.timezone, time.localtime().tm_gmtoff)
     # import zoneinfo
