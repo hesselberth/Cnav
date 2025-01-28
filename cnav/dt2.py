@@ -15,7 +15,7 @@ import time
 from collections import namedtuple
 import datetime
 from locale import nl_langinfo, D_T_FMT, D_FMT, T_FMT
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from enum import Enum
 from datetime import timezone, timedelta
 from operator import index as _index
@@ -47,6 +47,8 @@ IsoCalendarDate = namedtuple("IsoCalendarDate", ["year", "week", "weekday"])
 struct_time = namedtuple("struct_time", ["tm_year", "tm_mon", "tm_mday",
                                          "tm_hour", "tm_min", "tm_sec",
                                          "tm_wday", "tm_yday", "tm_isdst"])
+reduce_TimeDelta = namedtuple("TimeDelta", ["days", "seconds", "microseconds",
+                                         "nanoseconds"])
 
 _USEC = 1000  # ns
 _MSEC = 1000 * _USEC
@@ -60,6 +62,7 @@ _WEEK = 7 * _DAY
 class DTMeta(type):
     def __init__(cls, name, bases, dct):
         cls.cname = name
+        cls.mname = cls.__module__
         super().__init__(name, bases, dct)
 
 def _get_class_module(self):
@@ -85,10 +88,10 @@ def _check_date_fields(year, month, day):
 
 @total_ordering  # TODO: check efficiency
 class TimeDelta(datetime.timedelta, metaclass=DTMeta):
-    __slots__ = "_days", "_seconds", "_microseconds", "_total_nanoseconds", "_hashcode"
+    #__slots__ = "_days", "_seconds", "_microseconds", "_total_nanoseconds", "_hashcode"
 
-    def __new__(cls, days=0, seconds=0, microseconds=0,
-                milliseconds=0, minutes=0, hours=0, weeks=0, nanoseconds=0):
+    def __new__(cls, days=0, seconds=0, microseconds=0, nanoseconds=0,
+                milliseconds=0, minutes=0, hours=0, weeks=0):
         
         for name, value in (
             ("days", days),
@@ -157,30 +160,30 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
 
     def __repr__(self):
         f = []
-        weeks, days = divmod(self.days, 7)
-        hours, seconds = divmod(self.seconds, 3600)
-        minutes, seconds = divmod(seconds, 60)
-        milliseconds, microseconds = divmod(self.microseconds, 1000)
-        nanoseconds = self._total_nanoseconds % 10**9
+        #weeks, days = divmod(self.days, 7)
+        days = self.days
+        seconds = self.seconds
+        microseconds = self.microseconds
+        nanoseconds = self._total_nanoseconds % 10**3
         if days:
             f.append(f"days={days}")
         if seconds:
             f.append(f"seconds={seconds}")
         if microseconds:
             f.append(f"microseconds={microseconds}")
-        if milliseconds:
-            f.append(f"milliseconds={milliseconds}")
-        if minutes:
-            f.append(f"minutes={minutes}")
-        if hours:
-            f.append(f"hours={hours}")
-        if weeks:
-            f.append(f"weeks={weeks}")
+        #if milliseconds:
+        #    f.append(f"milliseconds={milliseconds}")
+        #if minutes:
+        #    f.append(f"minutes={minutes}")
+        #if hours:
+        #    f.append(f"hours={hours}")
+        #if weeks:
+        #    f.append(f"weeks={weeks}")
         if nanoseconds:
-            f.append(f"nanoseconds={self._total_nanoseconds%1000}")
+            f.append(f"nanoseconds={nanoseconds}")
         if not f:
             f.append("0")
-        return f"{self.cname}({', '.join(f)})"
+        return f"{self.mname}.{self.cname}({', '.join(f)})"
 
     @classmethod
     def total_nanoseconds(self, td=None):
@@ -193,23 +196,27 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
             us += td.seconds * 10**6
             us += td.days * SPD * 10**6
             return 1000 * us
-        raise NotImplementedError()
+        raise NotImplementedError
     
     def __add__(self, other):
         if isinstance(other, (TimeDelta, timedelta)):
             ns = self._total_nanoseconds + self.total_nanoseconds(other)
             return TimeDelta(nanoseconds=ns)
-        return other + self
-        raise (TypeError(f"Incompatible types for + : <{self.cname}>, {type(other)}"))
+        return NotImplemented
+
+    __radd__ = __add__
 
     def __sub__(self, other):
         if isinstance(other, (TimeDelta, timedelta)):
             ns = self._total_nanoseconds - self.total_nanoseconds(other)
             return TimeDelta(nanoseconds=ns)
-        return other - self
+        return NotImplemented
         raise (TypeError(f"Incompatible types for - : <{self.cname}>, {type(other)}"))
 
-    # rsub inherited
+    def __rsub__(self, other):
+        if isinstance(other, (TimeDelta, timedelta)):
+            return -self + other
+        raise (TypeError(f"Incompatible types for - : <{self.cname}>, {type(other)}"))
 
     def __neg__(self):
         return TimeDelta(nanoseconds=-self._total_nanoseconds)
@@ -219,10 +226,14 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
 
     def __mul__(self, other):
         if isinstance(other, (int, float, Decimal)):
-            return TimeDelta(nanoseconds=self._total_nanoseconds*Decimal(other))
+            try:
+                ns=self._total_nanoseconds * Decimal(other)
+            except InvalidOperation as err:
+                raise TypeError
+            return TimeDelta(nanoseconds=ns)
         raise (TypeError(f"Incompatible types for * : <{self.cname}>, {type(other)}"))
 
-    # rmul inherited
+    __rmul__ = __mul__
 
     def __floordiv__(self, other):
         if isinstance(other, int):
@@ -233,7 +244,11 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
 
     def __truediv__(self, other):
         if isinstance(other, (int, float)):
-            return TimeDelta(nanoseconds = self._total_nanoseconds / Decimal(other))
+            try:
+                ns = self._total_nanoseconds / Decimal(other)
+            except InvalidOperation as err:
+                raise TypeError
+            return TimeDelta(nanoseconds=ns)
         if isinstance(other, (TimeDelta, timedelta)):
             return self._total_nanoseconds / self.total_nanoseconds(other)
         raise (TypeError(f"Incompatible types for / : <{self.cname}>, {type(other)}"))
@@ -257,27 +272,31 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
     def __eq__(self, other):
         if isinstance(other, (TimeDelta, timedelta)):
             return self._total_nanoseconds == self.total_nanoseconds(other)
-        return False
-        raise (TypeError(f"Incompatible types for comparison : <{self.cname}>, {type(other)}"))
+        return NotImplemented
 
     def __gt__(self, other):
         if isinstance(other, (TimeDelta, timedelta)):
             return self._total_nanoseconds > self.total_nanoseconds(other)
-        raise (TypeError(f"Incompatible types for comparison : <{self.cname}>, {type(other)}"))
+        return NotImplemented
 
     def __bool__(self):
             return self._total_nanoseconds != 0
 
     def _getstate(self):
-        return self._total_nanoseconds
+        return (0, 0, 0, self._total_nanoseconds)
 
     def __reduce__(self):
         return (self.__class__, self._getstate())
+    
+    def __hash__(self):
+        if self._hashcode == -1:
+            self._hashcode = hash(self._getstate())
+        return self._hashcode
 
-# timedelta.min = timedelta(-999999999)
-# timedelta.max = timedelta(days=999999999, hours=23, minutes=59, seconds=59,
-#                           nanoseconds=999999999)
-# TimeDelta.resolution = TimeDelta(nanoseconds=1)
+TimeDelta.min = TimeDelta(-999999999)
+TimeDelta.max = TimeDelta(days=999999999, hours=23, minutes=59, seconds=59,
+                          nanoseconds=999999999)
+TimeDelta.resolution = TimeDelta(nanoseconds=1)
 
 class Date(metaclass = DTMeta):
     #__slots__ = '_year', '_month', '_day', '_hashcode', "cname", "mjd"
@@ -504,6 +523,8 @@ class Date(metaclass = DTMeta):
                     f"{other} has nonzero fraction in date arithmetic"))
             return Date(*RMJD(self.mjd + int(days)))
         raise (TypeError(f"Incompatible types for + : <{self.cname}>, {type(other)}"))
+
+    __radd__ = __add__
 
     def __eq__(self, b):
         return self.year == b.year and self.month == b.month and self.day == b.day
@@ -870,4 +891,22 @@ if __name__ == '__main__':
     #print(tstop-tstart)
     #print(Time.fromisoformat("T19:27:60+10"))
     #print(Date.fromisoformat("10-05-18"))
-
+    args = 12, 34, 56
+    orig = TimeDelta(*args)
+    import pickle
+    pickle_choices = [(pickle, pickle, proto)
+                      for proto in range(pickle.HIGHEST_PROTOCOL + 1)]
+    for pickler, unpickler, proto in pickle_choices:
+        green = pickler.dumps(orig, proto)
+        derived = unpickler.loads(green)
+        print(orig)
+    td = TimeDelta
+    print(td(nanoseconds=0.5)//td.resolution)
+    print(type(0.5*td.resolution))
+    def get_bad_float(bad_ratio):
+        class BadFloat(float):
+            def as_integer_ratio(self):
+                return bad_ratio
+        return BadFloat()
+    
+    x = TimeDelta() / get_bad_float(1 << 1000)
