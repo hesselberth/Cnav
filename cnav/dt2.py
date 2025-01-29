@@ -291,7 +291,7 @@ class Date(metaclass = DTMeta):
     #__slots__ = '_year', '_month', '_day', '_hashcode', "cname", "mjd"
     
     resolution = TimeDelta(days=1)
-    ORD0 = MJD(0, 12, 31)
+    ORD0 = MJD(1, 1, 2)
     dpat = "([+-]?)([0-9]{4})(?P<dash>-?)(W?)([0-5][0-9])(?P=dash)([0-9]{1,2})"
     datepattern = re.compile(dpat)
 
@@ -346,6 +346,10 @@ class Date(metaclass = DTMeta):
     @classmethod
     def frommjd(self, jd):
         return Date(*RMJD(jd))
+
+    @classmethod
+    def fromordinal(self, ordinal):
+        return Date(*RMJD(ordinal + self.ORD0))
 
     @classmethod
     def fromisoformat(self, date_string):
@@ -411,9 +415,14 @@ class Date(metaclass = DTMeta):
         strf["j"] = f"{self.yday:03d}"
         strf["U"] = f"{week_num_U:02d}"
         strf["W"] = f"{week_num_W:02d}"
+        strf["z"] = ""
+        strf["Z"] = ""
+        strf["F"] = f"{self.year:=-04d}-{self.month:02d}-{self.day:02d}"
+        strf["C"] = f"{self.year // 100:02d}"
+
 
         iso_year, iso_week, iso_day = self.isocalendar()
-        strf["G"] = f"{iso_year:03d}"
+        strf["G"] = f"{iso_year:-04d}"
         strf["u"] = f"{iso_day:1d}"
         strf["V"] = f"{iso_week:02d}"
         return strf
@@ -434,8 +443,11 @@ class Date(metaclass = DTMeta):
             return self.strftime(nl_langinfo(T_FMT))
         raise (SyntaxError(f"Encountered invalid % escape ({code})"))
 
-    def strftime(self, fmt):
-        r = re.sub("%([a-z|A-Z|%])", self.repl, fmt)
+    def strftime(self, format=None):
+        if format is None:
+            raise TypeError("Call to strftime without argument")
+        print("strf", self, format)
+        r = re.sub("%:?([a-z|A-Z|%])", self.repl, format)
         return (r.format())
 
     def replace(self, **kwargs):
@@ -482,7 +494,7 @@ class Date(metaclass = DTMeta):
 
     def __format__(self, fmt):
         if not isinstance(fmt, str):
-            raise TypeError(f"must be str, not {type(fmt)}")
+            raise TypeError(f"must be str, not {fmt.__class__.__name__}")
         if len(fmt) != 0:
             return self.strftime(fmt)
         return str(self)
@@ -673,7 +685,7 @@ class Time(metaclass=DTMeta):
         strf["b"] = strf["B"][:3]
         strf["m"] = f"{self.month:02d}"
         strf["Y"] = f"{self.year:=-04d}"
-        strf["y"] = strf["Y"][-2:]
+        strf["y"] = f"{self.year//100:=-02d}"
         strf["H"] = "00"
         strf["I"] = "00"
         strf["p"] = "AM"
@@ -684,6 +696,9 @@ class Time(metaclass=DTMeta):
         strf["j"] = f"{self.yday:03d}"
         strf["U"] = f"{week_num_U:02d}"
         strf["W"] = f"{week_num_W:02d}"
+        strf["z"] = ""
+        strf["Z"] = ""
+        strf["F"] = f"{self.year}-{self.month}-{self.day}"
 
         iso_year, iso_week, iso_day = self.isocalendar()
         strf["G"] = f"{iso_year:03d}"
@@ -694,7 +709,7 @@ class Time(metaclass=DTMeta):
     def repl(self, escape):  # replace format % escape by value
         code = escape.group(0)[-1]
         if code in self.strf:
-            return (self.strf[code])
+            return self.strf[code]
         elif code == '%':
             return '%'
         # there is a theoretical possibility that locale could cause
@@ -912,3 +927,7 @@ if __name__ == '__main__':
     args = 12, 34, 56
     orig = TimeDelta(*args)
     print(date1, date1.mjd)
+    d = datetime.date(1, 1, 1)
+    D = Date(1,1,1)
+    print(d, d.isoweekday())
+    print(D, D.isocalendar())

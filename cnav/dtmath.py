@@ -182,6 +182,9 @@ def RJD(jd:float) -> (int, int, int, float):
     F    : float
            Day fraction.
     """
+    if jd < 0:
+        raise OverflowError
+
     jd5 = jd + 0.5
     Z   = int(jd5)
     F   = jd5 - Z
