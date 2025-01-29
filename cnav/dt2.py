@@ -125,8 +125,8 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
             ns += Decimal(days) * _DAY
         if weeks != 0:
             ns += Decimal(weeks) * _WEEK
-        total_nanoseconds = round(ns)
 
+        total_nanoseconds = round(ns)
         days, ns = divmod(total_nanoseconds, _DAY)
         seconds, ns = divmod(ns, _SEC)
         microseconds, ns = divmod(ns, _USEC)
@@ -135,7 +135,7 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
             raise OverflowError(f"timedelta # of days is too large: {days}")
 
         self = datetime.timedelta.__new__(cls, days=days, seconds=seconds, microseconds=microseconds)
-        self._total_nanoseconds = Decimal(total_nanoseconds)
+        self._total_nanoseconds = total_nanoseconds
         self._hashcode = -1
         return self
 
@@ -171,14 +171,6 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
             f.append(f"seconds={seconds}")
         if microseconds:
             f.append(f"microseconds={microseconds}")
-        #if milliseconds:
-        #    f.append(f"milliseconds={milliseconds}")
-        #if minutes:
-        #    f.append(f"minutes={minutes}")
-        #if hours:
-        #    f.append(f"hours={hours}")
-        #if weeks:
-        #    f.append(f"weeks={weeks}")
         if nanoseconds:
             f.append(f"nanoseconds={nanoseconds}")
         if not f:
@@ -211,12 +203,12 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
             ns = self._total_nanoseconds - self.total_nanoseconds(other)
             return TimeDelta(nanoseconds=ns)
         return NotImplemented
-        raise (TypeError(f"Incompatible types for - : <{self.cname}>, {type(other)}"))
 
     def __rsub__(self, other):
         if isinstance(other, (TimeDelta, timedelta)):
             return -self + other
-        raise (TypeError(f"Incompatible types for - : <{self.cname}>, {type(other)}"))
+        return NotImplemented
+
 
     def __neg__(self):
         return TimeDelta(nanoseconds=-self._total_nanoseconds)
@@ -226,12 +218,9 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
 
     def __mul__(self, other):
         if isinstance(other, (int, float, Decimal)):
-            try:
-                ns=self._total_nanoseconds * Decimal(other)
-            except InvalidOperation as err:
-                raise TypeError
+            ns = self._total_nanoseconds * other
             return TimeDelta(nanoseconds=ns)
-        raise (TypeError(f"Incompatible types for * : <{self.cname}>, {type(other)}"))
+        return NotImplemented
 
     __rmul__ = __mul__
 
@@ -240,23 +229,19 @@ class TimeDelta(datetime.timedelta, metaclass=DTMeta):
             return TimeDelta(nanoseconds=self._total_nanoseconds // other)
         if isinstance(other, (TimeDelta, timedelta)):
             return int(self._total_nanoseconds // self.total_nanoseconds(other))
-        raise (TypeError(f"Incompatible types for / : <{self.cname}>, {type(other)}"))
+        return NotImplemented
 
     def __truediv__(self, other):
-        if isinstance(other, (int, float)):
-            try:
-                ns = self._total_nanoseconds / Decimal(other)
-            except InvalidOperation as err:
-                raise TypeError
+        if isinstance(other, (int, float, Decimal)):
+            ns = self._total_nanoseconds / other
             return TimeDelta(nanoseconds=ns)
         if isinstance(other, (TimeDelta, timedelta)):
             return self._total_nanoseconds / self.total_nanoseconds(other)
-        raise (TypeError(f"Incompatible types for / : <{self.cname}>, {type(other)}"))
+        return NotImplemented
 
-    # TODO !!! beware: decimal can have negative remainders after mod! switch to int?
+    # Beware: decimal can have negative remainders after mod!
     def __mod__(self, other):
         if isinstance(other, (TimeDelta, timedelta)):
-            print(self._total_nanoseconds // self.total_nanoseconds(other))
             return TimeDelta(nanoseconds = int(self._total_nanoseconds) % int(self.total_nanoseconds(other)))
         raise (TypeError(f"Incompatible types for % : <{self.cname}>, {type(other)}"))
 
@@ -298,11 +283,13 @@ TimeDelta.max = TimeDelta(days=999999999, hours=23, minutes=59, seconds=59,
                           nanoseconds=999999999)
 TimeDelta.resolution = TimeDelta(nanoseconds=1)
 
+class DateTime:
+    pass
+
+@total_ordering
 class Date(metaclass = DTMeta):
     #__slots__ = '_year', '_month', '_day', '_hashcode', "cname", "mjd"
     
-    MIN = (-4712,  1,  1)
-    MAX = (9999, 12, 31)
     resolution = TimeDelta(days=1)
     ORD0 = MJD(0, 12, 31)
     dpat = "([+-]?)([0-9]{4})(?P<dash>-?)(W?)([0-5][0-9])(?P=dash)([0-9]{1,2})"
@@ -311,34 +298,35 @@ class Date(metaclass = DTMeta):
     # def __new__(cls, year=2000, month=1, day=1):
     #     return super().__new__(cls)
 
-    def __init__(self, year=2000, month=1, day=1):
-        print("date", year, month, day)
-        if not isinstance(year, int) and isinstance(month, int) \
-            and isinstance(day, int):
-                raise (TypeError(f"{self.cname}: integer type expected"))
-        if year < -4712 or year > 9999 or month < 1 or month > 12 \
-            or day < 1 or day > mdays[month]:
-                raise (ValueError(f"{self.cname}: Invalid date"))
-        if year == 1582 and month == 10 and day > 4 and day < 15:
-            raise (ValueError(f"{self.cname}: Invalid date (Gregorian reform)"))
-
+    def __new__(cls, year=2000, month=1, day=1):
+        # if (month is None and
+        #     isinstance(year, (bytes, str)) and len(year) == 4 and
+        #     1 <= ord(year[2:3]) <= 12):
+        #     # Pickle support
+        #     if isinstance(year, str):
+        #         try:
+        #             year = year.encode('latin1')
+        #         except UnicodeEncodeError:
+        #             # More informative error message.
+        #             raise ValueError(
+        #                 "Failed to encode latin1 string when unpickling "
+        #                 "a date object. "
+        #                 "pickle.load(data, encoding='latin1') is assumed.")
+        #     #self = object.__new__(cls)
+        #     self.__setstate(year)
+        #     self._hashcode = -1
+        #     return 
         year, month, day = _check_date_fields(year, month, day)
+        self = object.__new__(cls)
         self.year = year
         self.month = month
         self.day = day
-        self.hashcode = -1
+        self._hashcode = -1
+        return self
 
     @cached_property
     def mjd(self):
         return MJD(self.year, self.month, self.day)
-
-    @cached_property
-    def min(self):
-        return Date(*self.MIN)
-
-    @cached_property
-    def max(self):
-        return Date(*self.MAX)
 
     @classmethod
     def today(self):
@@ -389,6 +377,7 @@ class Date(metaclass = DTMeta):
         weekday_1 = Date(year, 1, 1).isoweekday()
         first_thursday = (4 - weekday_1) % 7 + 1
         first_thursday_date = Date(year, 1, first_thursday)
+        return first_thursday_date + (7 * (week - 1) + day - 4)
         iso_oldyear = first_thursday_date - 4
         return iso_oldyear + (7 * (week - 1) + day)
 
@@ -489,7 +478,7 @@ class Date(metaclass = DTMeta):
     __str__ = isoformat
 
     def __repr__(self):
-        return f"{self.cname}({self.year}, {self.month}, {self.day})"
+        return f"{self.mname}.{self.cname}({self.year}, {self.month}, {self.day})"
 
     def __format__(self, fmt):
         if not isinstance(fmt, str):
@@ -526,9 +515,38 @@ class Date(metaclass = DTMeta):
 
     __radd__ = __add__
 
-    def __eq__(self, b):
-        return self.year == b.year and self.month == b.month and self.day == b.day
+    def __eq__(self, other):
+        if isinstance(other, Date) and not isinstance(other, DateTime):
+            return self.mjd == other.mjd
+        return NotImplemented
+    
+    def __gt__(self, other):
+        if isinstance(other, Date) and not isinstance(other, DateTime):
+            return self.mjd > other.mjd
+        return NotImplemented
 
+    def __hash__(self):
+        if self._hashcode == -1:
+            self._hashcode = hash(self._getstate())
+        return self._hashcode
+    
+    def _getstate(self):
+        return (self.year, self.month, self.day),
+
+    # TODO check if this weirdness works for neg years, probably not 
+    # def __setstate(self, state):
+    #    self.year, self.month, self.day = state
+
+    def __reduce__(self):
+        return (self.__class__, self._getstate())
+
+Date.min = Date(MINYEAR, 1, 1)
+Date.max = Date(MAXYEAR, 12, 31)
+
+class DateTime(Date):
+    def __new__(yyyy, mm, dd, hh, MM=0, ss=0):
+        self = Date.__new__(yyyy, mm, dd)
+        return self
 
 class TZInfo:
     def __init__(self, tzinfo):
@@ -893,20 +911,4 @@ if __name__ == '__main__':
     #print(Date.fromisoformat("10-05-18"))
     args = 12, 34, 56
     orig = TimeDelta(*args)
-    import pickle
-    pickle_choices = [(pickle, pickle, proto)
-                      for proto in range(pickle.HIGHEST_PROTOCOL + 1)]
-    for pickler, unpickler, proto in pickle_choices:
-        green = pickler.dumps(orig, proto)
-        derived = unpickler.loads(green)
-        print(orig)
-    td = TimeDelta
-    print(td(nanoseconds=0.5)//td.resolution)
-    print(type(0.5*td.resolution))
-    def get_bad_float(bad_ratio):
-        class BadFloat(float):
-            def as_integer_ratio(self):
-                return bad_ratio
-        return BadFloat()
-    
-    x = TimeDelta() / get_bad_float(1 << 1000)
+    print(date1, date1.mjd)
