@@ -44,10 +44,34 @@ datetime.MINYEAR = -4712
 MINYEAR = -4712
 MAXYEAR = 9999
 
-IsoCalendarDate = namedtuple("IsoCalendarDate", ["year", "week", "weekday"])
+# IsoCalendarDate = namedtuple("IsoCalendarDate", ["year", "week", "weekday"])
 struct_time = namedtuple("struct_time", ["tm_year", "tm_mon", "tm_mday",
                                          "tm_hour", "tm_min", "tm_sec",
                                          "tm_wday", "tm_yday", "tm_isdst"])
+
+class IsoCalendarDate(tuple):
+    def __new__(cls, year, week, weekday, /):
+        return super().__new__(cls, (year, week, weekday))
+
+    @property
+    def year(self):
+        return self[0]
+
+    @property
+    def week(self):
+        return self[1]
+
+    @property
+    def weekday(self):
+        return self[2]
+
+    def __reduce__(self):
+        return (tuple, (tuple(self),))
+
+    def __repr__(self):
+        return (f'{self.__class__.__name__}'
+                f'(year={self[0]}, week={self[1]}, weekday={self[2]})')
+
 reduce_TimeDelta = namedtuple("TimeDelta", ["days", "seconds", "microseconds",
                                          "nanoseconds"])
 
@@ -299,7 +323,7 @@ class Date(metaclass = DTMeta):
     
     resolution = TimeDelta(days=1)
     ORD0 = MJD(1, 1, 2)
-    dpat = "([+-]?)([0-9]{4})(?P<dash>-?)(W?)([0-5][0-9])(?P=dash)([0-9]{1,2})"
+    dpat = "([+-]?)([0-9]{4})(?P<dash>-?)(W?)([0-5][0-9])(?:(?P=dash)([0-9]{1,2}))?"
     datepattern = re.compile(dpat)
     min_mjd = MJD(MINYEAR, 1, 1)
     max_mjd = MJD(MAXYEAR, 12, 31)
@@ -369,36 +393,34 @@ class Date(metaclass = DTMeta):
         return JD(self.year, self.month, self.day)
 
     @classmethod
-    def fromisoformat(self, date_string):
-        m = self.datepattern.match(date_string)
+    def fromisoformat(cls, date_string):
+        m = cls.datepattern.match(date_string)
         if m:
             sign, year, dash, weekformat, wm, day = m.groups()
             year = int(year) * (1 - 2 * (year == '-'))
             if year < MINYEAR or year > MAXYEAR:
                 raise(ValueError("Year out of range [-4712, +9999]"))
             if weekformat == 'W':
+                if day == None:
+                    day = "1"
                 week, day  = int(wm), int(day)
                 last = Date(year, 12, 28).isocalendar().week
                 if week < 1 or week > last or day < 1 or day > 7:
                     raise(ValueError(f"Date not valid ({date_string})"))
-                return Date.fromisocalendar(year, week, day)
-            month, day  = int(wm), int(day)
-            if month == 2 and is_leapyear(year):
-                last = 29
-            else:
-                last = mdays[month]
-            if month < 1 or month > 12 or day < 1 or day > last:
-                raise(ValueError(f"Date not valid ({date_string})"))
-            return Date(year, month, day)
+                return cls.fromisocalendar(year, week, day)
+            if day == None:
+                raise ValueError(f"Date not valid (day missing in '{date_string}')")
+            month, day = int(wm), int(day)
+            return cls(year, month, day)
         raise (ValueError(f"Error parsing ISO date {date_string}"))
 
     @classmethod
-    def fromisocalendar(self, year, week, day):
+    def fromisocalendar(self, year, week, day=1):
         for var in year, week, day:
             if not isinstance(var, int):
                 raise TypeError
         if (year < 1582) or ((year == 1582) and (week < 40 or (week == 40 and day < 5))):
-            raise ValueError("iso calendar date must be Gregorian") 
+            raise ValueError("ISO calendar date must be Gregorian (>= 1582-W40-5)") 
         if year > 9999:
             raise ValueError
         if week < 1 or week > iso_weeks_in_year(year) or day < 1 or day > 7:
@@ -443,12 +465,6 @@ class Date(metaclass = DTMeta):
         strf["Z"] = ""
         strf["F"] = f"{self.year:=-04d}-{self.month:02d}-{self.day:02d}"
         strf["C"] = f"{self.year // 100:02d}"
-
-
-        iso_year, iso_week, iso_day = self.isocalendar()
-        strf["G"] = f"{iso_year:-04d}"
-        strf["u"] = f"{iso_day:1d}"
-        strf["V"] = f"{iso_week:02d}"
         return strf
 
     def repl(self, escape):  # replace format % escape by value
@@ -457,6 +473,16 @@ class Date(metaclass = DTMeta):
             return (self.strf[code])
         elif code == '%':
             return '%'
+
+        # iso, not in dict because these trigger an exception for dates in
+        # the Julian calendar
+        elif code == "G":
+            return f"{self._iso[0]:-04d}"
+        elif code == "u":
+            return f"{self._iso[1]:1d}"
+        elif code == "V":
+            return f"{self._iso[2]:02d}"
+
         # there is a theoretical possibility that locale could cause
         # infinite recursion here.
         elif code == 'c':
@@ -497,9 +523,10 @@ class Date(metaclass = DTMeta):
     def isgregorian(self):
         return is_gregorian(self.year, self.month, self.day)
 
-    def isocalendar(self):
+    @cached_property
+    def _iso(self):
         if not self.isgregorian():
-            raise ValueError("isocalendar date must be Gregorian")
+            raise ValueError("ISO notation is only defined for Gregorian dates (>= 1582-10-15)")
         iso_weekday = (weekday_nr(self.mjd + MJD0) - 1) % 7 + 1
         thursday_date = self + TimeDelta(4 - iso_weekday)
         iso_year = thursday_date.year
@@ -508,6 +535,9 @@ class Date(metaclass = DTMeta):
         first_thursday_date = Date(iso_year, 1, first_thursday)
         iso_weeknum = (thursday_date - first_thursday_date).days // 7 + 1
         return IsoCalendarDate(iso_year, iso_weeknum, iso_weekday)
+
+    def isocalendar(self):
+        return self._iso
 
     def isoformat(self):
         return f"{self.year:04d}-{self.month:02d}-{self.day:02d}"
@@ -583,7 +613,9 @@ class Date(metaclass = DTMeta):
         return self._hashcode
     
     def _getstate(self):
-        return (self.year, self.month, self.day),
+        return self.mjd,
+        # yhi, ylo = divmod(self.year, 256)
+        # return bytes([yhi, ylo, self.month, self.day]),
 
     # TODO check if this weirdness works for neg years, probably not 
     # def __setstate(self, state):
@@ -592,9 +624,10 @@ class Date(metaclass = DTMeta):
     def __reduce__(self):
         return (self.__class__, self._getstate())
 
-    def __setstate(self, string):
-        yhi, ylo, self._month, self._day = string
-        self._year = yhi * 256 + ylo
+    def __setstate(self, mjd):
+        self.year, self.month, self.day = RMJD(mjd)
+    #     yhi, ylo, self.month, self.day = string
+    #     self.year = yhi * 256 + ylo
 
 Date.min = Date(MINYEAR, 1, 1)
 Date.max = Date(MAXYEAR, 12, 31)
@@ -980,4 +1013,7 @@ if __name__ == '__main__':
     d += tiny
     print(d-tiny)
     print(JD(-4712,1,1))
-    print(Date.fromisocalendar(1582,41,1))
+    print(Date.fromisoformat("2025-W01"))
+    i = IsoCalendarDate(1,2,3)
+    print(i)
+    print(type(i))
