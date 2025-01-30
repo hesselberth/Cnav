@@ -108,9 +108,12 @@ def JD(YYYY:int, MM:int, DD:float) -> float:
            The corresponding Julian day number.
 
     """
-    assert (YYYY >= -4712)
+    if YYYY < -4712:
+        raise OverflowError
+
     if YYYY == 1582 and MM == 10:
         assert (DD <=4 or DD >= 15)
+
     if MM <= 2:
         Y  = YYYY - 1
         M  = MM + 12
@@ -144,9 +147,12 @@ def MJD(YYYY:int, MM:int, DD:int) -> int:
         Modified Julian day for the geven date
 
     """
-    assert (YYYY >= -4712)
+    if YYYY < -4712:
+        raise OverflowError
+
     if YYYY == 1582 and MM == 10:
         assert (DD <=4 or DD >= 15)
+
     if MM <= 2:
         Y  = YYYY - 1
         M  = MM + 12
@@ -182,7 +188,7 @@ def RJD(jd:float) -> (int, int, int, float):
     F    : float
            Day fraction.
     """
-    if jd < 0:
+    if jd < -0.5:
         raise OverflowError
 
     jd5 = jd + 0.5

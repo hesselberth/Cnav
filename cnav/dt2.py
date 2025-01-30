@@ -7,7 +7,7 @@ Created on Tue Jan 14 13:13:23 2025
 """
 
 from cnav.constants import months, MJD0, SPD, mdays
-from cnav.dtmath import JD, RJD, MJD, RMJD, weekday_str, weekday_nr, is_leapyear
+from cnav.dtmath import JD, RJD, MJD, RMJD, weekday_str, weekday_nr, is_leapyear, is_gregorian
 import re
 import numpy as np
 from functools import total_ordering, cached_property
@@ -19,6 +19,7 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from datetime import timezone, timedelta
 from operator import index as _index
+from math import floor
 
 class ts(Enum):
     UT1 = 0
@@ -82,10 +83,16 @@ def _check_date_fields(year, month, day):
     if not 1 <= day <= dim:
         raise ValueError('day must be in 1..%d' % dim, day)
     if year == 1582 and month == 10 and day > 4 and day < 15:
-        raise (ValueError(f"{self.cname}: Invalid date (Gregorian reform)"))
+        raise (ValueError("Invalid date (Gregorian reform)"))
     return year, month, day
 
+def _p(y): return y + floor(y/4) - floor(y/100) + floor(y/400)
 
+def iso_weeks_in_year(year):
+    if ( _p(year) % 7 == 4 ) or ( _p(year-1) % 7 == 3 ):
+        return 53
+    return 52
+    
 @total_ordering  # TODO: check efficiency
 class TimeDelta(datetime.timedelta, metaclass=DTMeta):
     #__slots__ = "_days", "_seconds", "_microseconds", "_total_nanoseconds", "_hashcode"
@@ -294,28 +301,31 @@ class Date(metaclass = DTMeta):
     ORD0 = MJD(1, 1, 2)
     dpat = "([+-]?)([0-9]{4})(?P<dash>-?)(W?)([0-5][0-9])(?P=dash)([0-9]{1,2})"
     datepattern = re.compile(dpat)
+    min_mjd = MJD(MINYEAR, 1, 1)
+    max_mjd = MJD(MAXYEAR, 12, 31)
+    valid_mjd = range(min_mjd, max_mjd+1)
 
     # def __new__(cls, year=2000, month=1, day=1):
     #     return super().__new__(cls)
 
-    def __new__(cls, year=2000, month=1, day=1):
-        # if (month is None and
-        #     isinstance(year, (bytes, str)) and len(year) == 4 and
-        #     1 <= ord(year[2:3]) <= 12):
-        #     # Pickle support
-        #     if isinstance(year, str):
-        #         try:
-        #             year = year.encode('latin1')
-        #         except UnicodeEncodeError:
-        #             # More informative error message.
-        #             raise ValueError(
-        #                 "Failed to encode latin1 string when unpickling "
-        #                 "a date object. "
-        #                 "pickle.load(data, encoding='latin1') is assumed.")
-        #     #self = object.__new__(cls)
-        #     self.__setstate(year)
-        #     self._hashcode = -1
-        #     return 
+    def __new__(cls, year, month=None, day=None):
+        if (month is None and
+            isinstance(year, (bytes, str)) and len(year) == 4 and
+            1 <= ord(year[2:3]) <= 12):
+            # Pickle support
+            if isinstance(year, str):
+                try:
+                    year = year.encode('latin1')
+                except UnicodeEncodeError:
+                    # More informative error message.
+                    raise ValueError(
+                        "Failed to encode latin1 string when unpickling "
+                        "a date object. "
+                        "pickle.load(data, encoding='latin1') is assumed.")
+            self = object.__new__(cls)
+            self.__setstate(year)
+            self._hashcode = -1
+            return self
         year, month, day = _check_date_fields(year, month, day)
         self = object.__new__(cls)
         self.year = year
@@ -349,7 +359,14 @@ class Date(metaclass = DTMeta):
 
     @classmethod
     def fromordinal(self, ordinal):
+        mjd = ordinal + self.ORD0
+        if not mjd in self.valid_mjd:
+            raise ValueError("Date ordinal out of range")
         return Date(*RMJD(ordinal + self.ORD0))
+
+    def jd(self):
+        print(self, self.year, self.month, self.day)
+        return JD(self.year, self.month, self.day)
 
     @classmethod
     def fromisoformat(self, date_string):
@@ -377,13 +394,20 @@ class Date(metaclass = DTMeta):
 
     @classmethod
     def fromisocalendar(self, year, week, day):
+        for var in year, week, day:
+            if not isinstance(var, int):
+                raise TypeError
+        if (year < 1582) or ((year == 1582) and (week < 40 or (week == 40 and day < 5))):
+            raise ValueError("iso calendar date must be Gregorian") 
+        if year > 9999:
+            raise ValueError
+        if week < 1 or week > iso_weeks_in_year(year) or day < 1 or day > 7:
+            raise ValueError            
         thursday_year = year
         weekday_1 = Date(year, 1, 1).isoweekday()
         first_thursday = (4 - weekday_1) % 7 + 1
         first_thursday_date = Date(year, 1, first_thursday)
-        return first_thursday_date + (7 * (week - 1) + day - 4)
-        iso_oldyear = first_thursday_date - 4
-        return iso_oldyear + (7 * (week - 1) + day)
+        return first_thursday_date + TimeDelta(7 * (week - 1) + day - 4)
 
     @cached_property
     def strf(self):
@@ -446,7 +470,6 @@ class Date(metaclass = DTMeta):
     def strftime(self, format=None):
         if format is None:
             raise TypeError("Call to strftime without argument")
-        print("strf", self, format)
         r = re.sub("%:?([a-z|A-Z|%])", self.repl, format)
         return (r.format())
 
@@ -471,9 +494,14 @@ class Date(metaclass = DTMeta):
     def isoweekday(self):
         return (weekday_nr(self.mjd + MJD0) - 1) % 7 + 1
 
+    def isgregorian(self):
+        return is_gregorian(self.year, self.month, self.day)
+
     def isocalendar(self):
+        if not self.isgregorian():
+            raise ValueError("isocalendar date must be Gregorian")
         iso_weekday = (weekday_nr(self.mjd + MJD0) - 1) % 7 + 1
-        thursday_date = self + (4 - iso_weekday)
+        thursday_date = self + TimeDelta(4 - iso_weekday)
         iso_year = thursday_date.year
         weekday_1 = Date(iso_year, 1, 1).isoweekday()
         first_thursday = (4 - weekday_1) % 7 + 1
@@ -500,30 +528,42 @@ class Date(metaclass = DTMeta):
         return str(self)
 
     def __sub__(self, other):
-        if isinstance(other, int):
-            return Date(*RMJD(self.mjd - other))
+        # if isinstance(other, int):
+        #     mjd = self.mjd - other
+        #     if mjd in self.valid_mjd:
+        #         return Date(*RMJD(mjd))
+        #     raise OverflowError
         if isinstance(other, TimeDelta):
             days, fraction = divmod(other, self.resolution)
             if fraction:
                 raise (ValueError(
                     f"{other} has nonzero fraction in date arithmetic"))
-            return Date(*RMJD(self.mjd - int(days)))
+            mjd = self.mjd - int(days)
+            if mjd in self.valid_mjd:
+                return Date(*RMJD(mjd))
+            raise OverflowError
         if isinstance(other, datetime.date):
             other = Date(other.year, other.month, other.day)
         if isinstance(other, Date):
             return TimeDelta(days=self.mjd - other.mjd)
-        raise (TypeError(f"Incompatible types for - : <{self.cname}>, {type(other)}"))
+        return NotImplemented
 
     def __add__(self, other):
-        if isinstance(other, int):
-            return Date(*RMJD(self.mjd + other))
-        elif isinstance(other, TimeDelta):
+        # if isinstance(other, int):
+        #     mjd = self.mjd + other
+        #     if mjd in self.valid_mjd:
+        #         return Date(*RMJD(mjd))
+        #     raise OverflowError
+        if isinstance(other, TimeDelta):
             days, fraction = divmod(other, self.resolution)
             if fraction:
                 raise (ValueError(
                     f"{other} has nonzero fraction in date arithmetic"))
-            return Date(*RMJD(self.mjd + int(days)))
-        raise (TypeError(f"Incompatible types for + : <{self.cname}>, {type(other)}"))
+            mjd = self.mjd + int(days)
+            if mjd in self.valid_mjd:
+                return Date(*RMJD(mjd))
+            raise OverflowError
+        return NotImplemented
 
     __radd__ = __add__
 
@@ -552,12 +592,16 @@ class Date(metaclass = DTMeta):
     def __reduce__(self):
         return (self.__class__, self._getstate())
 
+    def __setstate(self, string):
+        yhi, ylo, self._month, self._day = string
+        self._year = yhi * 256 + ylo
+
 Date.min = Date(MINYEAR, 1, 1)
 Date.max = Date(MAXYEAR, 12, 31)
 
 class DateTime(Date):
-    def __new__(yyyy, mm, dd, hh, MM=0, ss=0):
-        self = Date.__new__(yyyy, mm, dd)
+    def __new__(cls, yyyy, mm, dd, hh, MM=0, ss=0):
+        self = Date.__new__(cls, yyyy, mm, dd)
         return self
 
 class TZInfo:
@@ -888,7 +932,7 @@ if __name__ == '__main__':
     print(Date(*d).toordinal())
     print(datetime.date(*d).toordinal())
     print(datetime.datetime.today().__format__("%y"))
-    print("{:%y %m}".format(Date(-2000, 1, 2)))
+    print("{:%y %m}".format(Date(2000, 1, 2)))
     minute = TimeDelta(minutes=1)
     t = TimeDelta(minutes=-2, seconds=30)
     print(repr(divmod(t, minute)))
@@ -927,7 +971,13 @@ if __name__ == '__main__':
     args = 12, 34, 56
     orig = TimeDelta(*args)
     print(date1, date1.mjd)
-    d = datetime.date(1, 1, 1)
-    D = Date(1,1,1)
-    print(d, d.isoweekday())
-    print(D, D.isocalendar())
+    d = datetime.date(826, 3, 16)
+    D = Date(826,3,12)
+    print(Date(*RJD(0)[:3]), Date.min)
+    tiny = Date.resolution
+    d = Date.min
+    print("mjd", d.mjd, d.jd())
+    d += tiny
+    print(d-tiny)
+    print(JD(-4712,1,1))
+    print(Date.fromisocalendar(1582,41,1))
