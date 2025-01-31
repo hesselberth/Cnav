@@ -72,8 +72,9 @@ class IsoCalendarDate(tuple):
         return (f'{self.__class__.__name__}'
                 f'(year={self[0]}, week={self[1]}, weekday={self[2]})')
 
-reduce_TimeDelta = namedtuple("TimeDelta", ["days", "seconds", "microseconds",
-                                         "nanoseconds"])
+class TZInfo:
+    pass
+
 
 _USEC = 1000  # ns
 _MSEC = 1000 * _USEC
@@ -110,6 +111,30 @@ def _check_date_fields(year, month, day):
         raise (ValueError("Invalid date (Gregorian reform)"))
     return year, month, day
 
+def _check_time_fields(hour, minute, second, nanosecond, fold):
+    hour = _index(hour)
+    minute = _index(minute)
+    second = _index(second)
+    nanosecond = _index(nanosecond)
+    if not 0 <= hour <= 23:
+        raise ValueError('hour must be in 0..23', hour)
+    if not 0 <= minute <= 59:
+        raise ValueError('minute must be in 0..59', minute)
+    if hour == 23 and minute == 59:
+        maxsec = 60
+    else:
+        maxsec = 59
+    if not 0 <= second <= maxsec:
+        raise ValueError(f'second must be in 0..{maxsec}', second)
+    if not 0 <= nanosecond <= 999999999:
+        raise ValueError('microsecond must be in 0..999999999', nanosecond)
+    if fold not in (0, 1):
+        raise ValueError('fold must be either 0 or 1', fold)
+    return hour, minute, second, nanosecond, fold
+
+def _check_tzinfo_arg(tz):
+    if tz is not None and not isinstance(tz, TZInfo):
+        raise TypeError("tzinfo argument must be None or of a tzinfo subclass")
 def _p(y): return y + floor(y/4) - floor(y/100) + floor(y/400)
 
 def iso_weeks_in_year(year):
@@ -491,7 +516,9 @@ class Date(metaclass = DTMeta):
         year = kwargs["year"] if "year" in kwargs else self.year
         month = kwargs["month"] if "month" in kwargs else self.month
         day = kwargs["day"] if "day" in kwargs else self.day
-        return Date(year, month, day)
+        return type(self)(year, month, day)
+
+    __replace__ = replace
 
     def timetuple(self):
         mjd_zero = MJD(self.year - 1, 12, 31)
@@ -664,23 +691,29 @@ class Time(metaclass=DTMeta):
     time  = f"(?:{thms})(?:{f_pat})?({tz})?"
     nano  = Decimal("1000000000")
 
-    def __init__(self, hour=0, minute=0, second=0, nanosecond=0, tzinfo=None,
-                 *, fold=0):
-        mod = hour%1 + minute%1 + second%1 + nanosecond%1 + fold%1
-        if mod:
-            raise (TypeError(f"{self.cname}: integer type expected"))
-        if hour < 0 or hour > 23 or minute < 0 or minute > 59 or \
-            second < 0 or second > 60 or nanosecond < 0 or \
-            nanosecond > 999999999 or fold < 0 or fold > 1:
-                raise (ValueError(f"{self.cname}: oinvalid time"))
-        if second == 60 and (hour!=23 or minute!=59):
-            raise (ValueError(f"{self.cname}: leap second not at 23:59"))
+    __slots__ = 'hour', 'minute', 'second', 'nanosecond', 'tzinfo', '_hashcode', 'fold'
+
+    def __new__(cls, hour=0, minute=0, second=0, nanosecond=0, tzinfo=None,
+                *, fold=0):
+        
+        if minute == 0 and second == 0 and nanosecond == 0 \
+            and tzinfo == None and fold == 0:
+                if isinstance(hour, int) and hour < 0:
+                    self = object.__new__(cls)
+                    self.__setstate(hour)
+                    self._hashcode = -1
+                    return self
+        hour, minute, second, nanosecond, fold = _check_time_fields(hour, minute, second, nanosecond, fold)
+        _check_tzinfo_arg(tzinfo)
+        self = object.__new__(cls)
         self.hour = hour
         self.minute = minute
         self.second = second
         self.nanosecond = nanosecond
         self.tzinfo = tzinfo
         self.fold = fold
+        self._hashcode = -1
+        return self
 
     @classmethod
     def today(self):
@@ -788,7 +821,7 @@ class Time(metaclass=DTMeta):
         nanosecond = kwargs["nanosecond"] if "nanosecond" in kwargs else self.nanosecond
         tzinfo = kwargs["tzinfo"] if "day" in kwargs else self.tzinfo
         fold = kwargs["fold"] if "fold" in kwargs else self.fold
-        return Date(year, month, day)
+        return type(self)(hour, minute, second, nanosecond, tzinfo, fold)
 
     def timetuple(self):
         return struct_time(self.year, self.month, self.day, 0, 0, 0,
