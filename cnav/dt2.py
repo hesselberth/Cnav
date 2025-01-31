@@ -333,23 +333,12 @@ class Date(metaclass = DTMeta):
     #     return super().__new__(cls)
 
     def __new__(cls, year, month=None, day=None):
-        if (month is None and
-            isinstance(year, (bytes, str)) and len(year) == 4 and
-            1 <= ord(year[2:3]) <= 12):
-            # Pickle support
-            if isinstance(year, str):
-                try:
-                    year = year.encode('latin1')
-                except UnicodeEncodeError:
-                    # More informative error message.
-                    raise ValueError(
-                        "Failed to encode latin1 string when unpickling "
-                        "a date object. "
-                        "pickle.load(data, encoding='latin1') is assumed.")
-            self = object.__new__(cls)
-            self.__setstate(year)
-            self._hashcode = -1
-            return self
+        if month is None and day is None:
+            if isinstance(year, int):
+                self = object.__new__(cls)
+                self.__setstate(year)
+                self._hashcode = -1
+                return self
         year, month, day = _check_date_fields(year, month, day)
         self = object.__new__(cls)
         self.year = year
@@ -371,22 +360,21 @@ class Date(metaclass = DTMeta):
         if timestamp is None:
             raise TypeError("'NoneType' object cannot be interpreted as a time stamp")
         y, m, d, hh, mm, ss, weekday, jday, dst = time.localtime(timestamp)
-        return __class__(y, m, d)
+        return Date(y, m, d)
 
     @classmethod
     def fromjd(self, jd):
         return Date(*RJD(jd)[:3])
 
     @classmethod
-    def frommjd(self, jd):
-        return Date(*RMJD(jd))
+    def frommjd(cls, mjd):
+        if not mjd in cls.valid_mjd:
+            raise ValueError("Date ordinal out of range")
+        return cls(*RMJD(mjd))
 
     @classmethod
-    def fromordinal(self, ordinal):
-        mjd = ordinal + self.ORD0
-        if not mjd in self.valid_mjd:
-            raise ValueError("Date ordinal out of range")
-        return Date(*RMJD(ordinal + self.ORD0))
+    def fromordinal(cls, ordinal):
+        return cls.frommjd(ordinal)
 
     def jd(self):
         print(self, self.year, self.month, self.day)
@@ -512,7 +500,7 @@ class Date(metaclass = DTMeta):
                            self.weekday(), self.yday, -1)
 
     def toordinal(self):
-        return self.mjd - self.ORD0
+        return self.mjd
 
     def weekday(self):
         return (weekday_nr(self.mjd + MJD0) - 1) % 7
@@ -566,11 +554,10 @@ class Date(metaclass = DTMeta):
         if isinstance(other, TimeDelta):
             days, fraction = divmod(other, self.resolution)
             if fraction:
-                raise (ValueError(
-                    f"{other} has nonzero fraction in date arithmetic"))
+                print(f"Warning: {other} has nonzero fraction in date arithmetic")
             mjd = self.mjd - int(days)
             if mjd in self.valid_mjd:
-                return Date(*RMJD(mjd))
+                return type(self).frommjd(mjd)
             raise OverflowError
         if isinstance(other, datetime.date):
             other = Date(other.year, other.month, other.day)
@@ -587,11 +574,10 @@ class Date(metaclass = DTMeta):
         if isinstance(other, TimeDelta):
             days, fraction = divmod(other, self.resolution)
             if fraction:
-                raise (ValueError(
-                    f"{other} has nonzero fraction in date arithmetic"))
+                print(f"Warning: {other} has nonzero fraction in date arithmetic")
             mjd = self.mjd + int(days)
             if mjd in self.valid_mjd:
-                return Date(*RMJD(mjd))
+                return type(self).frommjd(mjd)
             raise OverflowError
         return NotImplemented
 
@@ -633,9 +619,22 @@ Date.min = Date(MINYEAR, 1, 1)
 Date.max = Date(MAXYEAR, 12, 31)
 
 class DateTime(Date):
-    def __new__(cls, yyyy, mm, dd, hh, MM=0, ss=0):
+    def __new__(cls, yyyy, mm, dd, hh=0, MM=0, ss=0):
         self = Date.__new__(cls, yyyy, mm, dd)
+        self.hh = hh
+        self.MM = MM
+        self.ss = ss
         return self
+
+    def __eq__(self, other):
+        if isinstance(other, (Date, DateTime)):
+            return self.mjd == other.mjd
+        return NotImplemented
+    
+    def __gt__(self, other):
+        if isinstance(other, (Date, DateTime)):
+            return self.mjd > other.mjd
+        return NotImplemented
 
 class TZInfo:
     def __init__(self, tzinfo):
@@ -654,12 +653,7 @@ class TZInfo:
         pass
 
 
-
-
 class Time(metaclass=DTMeta):
-    MIN = (0,  0,  0, 0)
-    MAX = (23, 59, 59, 999999999)
-    resolution = TimeDelta(1)
     t_pat = "[T| ]?"
     h_pat = "[0-1][0-9]|2[0-4]"
     m_pat = "[0-5][0-9]"
@@ -688,32 +682,16 @@ class Time(metaclass=DTMeta):
         self.tzinfo = tzinfo
         self.fold = fold
 
-    @cached_property
-    def min(self):
-        return __class__(*self.MIN)
-
-    @cached_property
-    def max(self):
-        return __class__(*self.MAX)
-
     @classmethod
     def today(self):
         return self.fromtimestamp(time.time())
 
     @classmethod
     def fromtimestamp(self, timestamp):
-        seconds = np.longdouble(timestamp)
+        seconds =Decimal(timestamp)
         days = seconds / SPD
         mjd = int(days) + MJD_UNIX_EPOCH
         return Date(*RMJD(mjd))
-
-    @classmethod
-    def fromjd(self, jd):
-        return Date(*RJD(jd)[:3])
-
-    @classmethod
-    def frommjd(self, jd):
-        return Date(*RMJD(jd))
 
     @classmethod
     def fromisoformat(self, time_string):
@@ -878,6 +856,11 @@ class Time(metaclass=DTMeta):
         return self.year == b.year and self.month == b.month and self.day == b.day
 
 
+Time.min = Time(0, 0, 0, 0)
+Time.max= Time(23, 59, 60, 999999999)
+Time.resolution = TimeDelta(nanoseconds=1)
+
+
 def test_isocalendar():
     week_mondays = [
         ((2003, 12, 22), (2003, 52, 1)),
@@ -1016,4 +999,4 @@ if __name__ == '__main__':
     print(Date.fromisoformat("2025-W01"))
     i = IsoCalendarDate(1,2,3)
     print(i)
-    print(type(i))
+    print(MJD(1945, 11, 12))
