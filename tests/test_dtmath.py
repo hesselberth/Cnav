@@ -68,7 +68,7 @@ def test_calendar_reform():
                 skip = JD(1582, 10, DD)
 
 def test_RMJD():
-    assert(RMJD(0) == (1858, 11, 17, 0))
+    assert(RMJD(0) == (1858, 11, 17))
     
 def test_TJC():
     tjc = TJC(MJD0, 53750.8928551388888888)

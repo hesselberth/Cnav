@@ -26,7 +26,7 @@ import cnav.dt2 as datetime_module
 from cnav.dt2 import MINYEAR, MAXYEAR
 from cnav.dt2 import TimeDelta as timedelta
 from datetime import tzinfo
-from datetime import time
+from cnav.dt2 import Time as time
 from datetime import timezone
 from datetime import UTC
 from cnav.dt2 import Date as date

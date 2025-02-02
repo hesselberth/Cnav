@@ -7,7 +7,7 @@ Created on Tue Jan 14 13:13:23 2025
 """
 
 from cnav.constants import months, MJD0, SPD, mdays
-from cnav.dtmath import JD, RJD, MJD, RMJD, weekday_str, weekday_nr, is_leapyear, is_gregorian
+from cnav.dtmath import JD, RJD, MJD, RMJD, weekday_str, weekday_nr, is_leapyear, is_gregorian, date_from_Gregorian
 import re
 import numpy as np
 from functools import total_ordering, cached_property
@@ -20,6 +20,7 @@ from enum import Enum
 from datetime import timezone, timedelta
 from operator import index as _index
 from math import floor
+import _strptime
 
 class ts(Enum):
     UT1 = 0
@@ -357,7 +358,7 @@ class Date(metaclass = DTMeta):
     # def __new__(cls, year=2000, month=1, day=1):
     #     return super().__new__(cls)
 
-    def __new__(cls, year, month=None, day=None):
+    def __new__(cls, year, month=None, day=None, *args):  # args for str
         if month is None and day is None:
             if isinstance(year, int):
                 self = object.__new__(cls)
@@ -401,6 +402,11 @@ class Date(metaclass = DTMeta):
     def fromordinal(cls, ordinal):
         return cls.frommjd(ordinal)
 
+    @classmethod
+    def fromGregorian(cls, year, month, day):
+        date = date_from_Gregorian(year, month, day)
+        return cls(*date)
+
     def jd(self):
         print(self, self.year, self.month, self.day)
         return JD(self.year, self.month, self.day)
@@ -443,6 +449,11 @@ class Date(metaclass = DTMeta):
         first_thursday = (4 - weekday_1) % 7 + 1
         first_thursday_date = Date(year, 1, first_thursday)
         return first_thursday_date + TimeDelta(7 * (week - 1) + day - 4)
+
+    @classmethod
+    def strptime(cls, date_string, format):
+        args = _strptime._strptime(date_string, format)[0][:3]
+        return cls(*args)
 
     @cached_property
     def strf(self):
@@ -560,7 +571,12 @@ class Date(metaclass = DTMeta):
     def ctime(self):
         return f"{self.strf['a']} {self.strf['b']} {self.day:2d} 00:00:00 {self.year}"
 
-    __str__ = isoformat
+    def __str__(self):
+        if is_gregorian(self.year, self.month, self.day):
+            cal = "G"
+        else:
+            cal = "J"
+        return f"{cal}{self.year: 04d}-{self.month:02d}-{self.day:02d}"
 
     def __repr__(self):
         return f"{self.mname}.{self.cname}({self.year}, {self.month}, {self.day})"
@@ -714,17 +730,6 @@ class Time(metaclass=DTMeta):
         self.fold = fold
         self._hashcode = -1
         return self
-
-    @classmethod
-    def today(self):
-        return self.fromtimestamp(time.time())
-
-    @classmethod
-    def fromtimestamp(self, timestamp):
-        seconds =Decimal(timestamp)
-        days = seconds / SPD
-        mjd = int(days) + MJD_UNIX_EPOCH
-        return Date(*RMJD(mjd))
 
     @classmethod
     def fromisoformat(self, time_string):
@@ -885,6 +890,9 @@ class Time(metaclass=DTMeta):
             return Date(*RMJD(self.mjd + int(days)))
         raise (TypeError(f"Incompatible types for / : <Date>, {type(b)}"))
 
+    def __bool__(self):
+        return True
+
     def __eq__(self, b):
         return self.year == b.year and self.month == b.month and self.day == b.day
 
@@ -1033,3 +1041,7 @@ if __name__ == '__main__':
     i = IsoCalendarDate(1,2,3)
     print(i)
     print(MJD(1945, 11, 12))
+    print(Date.strptime("19710510 120001.1", "%Y%m%d %H%M%S.%f"))
+    t = Time(1,2,3)
+    print(t, type(t.resolution))
+    print(Date.fromGregorian(1582,10,14))
