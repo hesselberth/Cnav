@@ -7,7 +7,7 @@ Created on Tue Jan 14 13:13:23 2025
 """
 
 from cnav.constants import months, MJD0, SPD, mdays
-from cnav.dtmath import JD, RJD, MJD, RMJD, weekday_str, weekday_nr, is_leapyear, is_gregorian, date_from_Gregorian
+from cnav.dtmath import JD, RJD, MJD, RMJD, weekday_str, weekday_nr, is_gregorian, date_from_gregorian, Calendar
 import re
 import numpy as np
 from functools import total_ordering, cached_property
@@ -404,7 +404,7 @@ class Date(metaclass = DTMeta):
 
     @classmethod
     def fromGregorian(cls, year, month, day):
-        date = date_from_Gregorian(year, month, day)
+        date = date_from_gregorian(year, month, day)
         return cls(*date)
 
     def jd(self):
@@ -1045,3 +1045,8 @@ if __name__ == '__main__':
     t = Time(1,2,3)
     print(t, type(t.resolution))
     print(Date.fromGregorian(1582,10,14))
+    cal = Calendar()
+    print(cal._GD(1600,1,1), cal._RGD(cal._GD(1600,1,1)), JD(2000, 1, 1))
+    cal.align_gregorian(2000, 1, 1.5, 2451545)
+    print(cal._GD(1600,1,1), cal._RGD(cal._GD(1600,1,1)), JD(1600, 1, 1))
+    

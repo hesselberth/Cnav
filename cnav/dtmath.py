@@ -7,9 +7,11 @@ Created on Sat Jan 11 20:57:17 2025
 """
 
 import numpy as np
-from .constants import MJD0, SPD, wdays
+from .constants import MJD0, SPD, wdays, JD2000
 from .cnumba import cnjit
+from collections import namedtuple
 
+DateTuple = namedtuple("datetuple", ["year", "month", "day"])
 
 """
 Date/time math. These algorithms use Julian day numbers to compute differences
@@ -417,11 +419,7 @@ def is_julian_leapyear(year):
 def JJD(j_year, j_month, j_day):
     """
     Given a Julian date, compute the Julian day number.
-    The Julian epoch is -4800 which aligns leap years and results in positive
-    years down to -4712. On top of this, an offset is implemented so that the
-    GD is equal to the JD from october 15, 1582. Going back in time, GD and JD
-    deviate exactly by the leap day difference between the Julian and the
-    proleptic Gregorian calendar.
+    The Julian epoch is -4712-1-1 at noon.
 
     Parameters
     ----------
@@ -497,3 +495,252 @@ def date_to_julian(year, month, day):
     jd = JD(year, month, day)
     rjd = RJDj(jd)
     return rjd
+
+class Calendar:
+    default = 0
+    Julian = 1
+    gregorian = 2
+    mixed = 3
+    JD0 = 1721422.5
+    
+    def __init__(self):
+        pass
+
+    def setDefault(self):
+        self.JD = self._JD
+        self.calendar = self.default
+
+    def setJulian(self):
+        self.JD = self._JD
+        self.RJD = self._RJD
+
+    def setGregorian(self):
+        self.align_gregorian(2000, 1, 1.5, JD2000)
+        self.JD = self._GD
+        self.RJD = self._RGD
+
+    def setMixed(self):
+        self.calendar = self.mixed
+    
+    def _align(self, year, month, day, jd):
+        gd = self._GD0(year, month, day)
+        self.g_epoch = jd - gd
+
+    def JD(self, year, month, day):
+        pass
+    
+    def RJD(self, year, month, day):
+        pass
+        
+    def _is_gregorian_leapyear(self, year):
+        """
+        Check if a given year is a leap year in the (proleptic)
+        Gregorian calendar.
+    
+        Parameters
+        ----------
+        year : int
+            DESCRIPTION.
+    
+        Returns
+        -------
+        Boolean
+            True if year is a leap year
+        """
+        if year % 4 == 0:               # possibly leap
+            if year % 400 == 0:         # leap
+                leapyear = True
+            else:
+                if year % 100 == 0:     # common
+                    leapyear = False
+                else:                   # leap
+                    leapyear = True
+        else:
+            leapyear = False
+        return leapyear
+    
+    def _GD0(self, gr_year, gr_month, gr_day):
+        """
+        Given a Gregorian date, compute the day number.
+        Handles positive and negative years.
+        Day 0 is at 1-1-0.
+    
+        Parameters
+        ----------
+        gryear : int
+            Year in the Gregorian calendar.
+        grmonth : int
+            Month in the Gregorian calendar.
+        grday : int
+            Day in the Gregorian calendar.
+    
+        Returns
+        -------
+        float
+            The Julian day number in the Julian calendar corresponding to the
+            Gregorian date
+        """
+        y = gr_year -1
+        ord = 365 * y + y // 4 - y // 100 + y // 400
+        ord += (367 * gr_month - 362) // 12 
+        if gr_month > 2:
+            if self._is_gregorian_leapyear(gr_year):
+                ord -= 1
+            else:
+                ord -= 2
+        ord += gr_day
+        return ord
+    
+    GDALIGN = JD(2000, 1, 1) - GD(2000, 1, 1)
+    
+    def _GD(self, gr_year, gr_month, gr_day):
+        return self._GD0(gr_year, gr_month, gr_day) + self.g_epoch
+    
+    def _RGD(self, jd):
+        """
+        Given a JD number, compute the corresponding Gregorian Date.
+        
+        RJDg(JDg(y, m, d)) is an invariant. This function can be used to
+        compute a proleptic Gregorian date corresponding to a Julian date.
+    
+        Parameters
+        ----------
+        gd : float
+             Day number.
+    
+        Returns
+        -------
+        The Gregorian date.
+    
+        TYPE: 3-tuple if type int (year, month, day)
+        """
+        d = jd - self.g_epoch - 1
+        n400 = d // 146097
+        d1 = d % 146097
+        n100 = d1 // 36524
+        d2 = d1 % 36524
+        n4 = d2 // 1461
+        d3 = d2 % 1461
+        n1 = d3 // 365
+        y = 400 * n400 + 100 * n100 + 4 * n4 + n1
+        if not (n1 == 4 or n100 == 4):
+            y += 1
+        y = int(y)
+        if n1 != 4 and n100 != 4:
+            p = d3 % 365
+        else:
+            return y, 12, 31
+        if is_gregorian_leapyear(y):
+            if p < 60:
+                c = 0
+            else:
+                c = 1
+        else:
+            if p < 59:
+                c = 0
+            else:
+                c=2
+        m = (12 * (p + c) + 373) // 367
+        d = d - self._GD0(y, m, 0) + 1
+        return (y, int(m), int(d))
+        
+    def date_from_gregorian(gr_year, gr_month, gr_day):
+        return RJD(JDg(gr_year, gr_month, gr_day))[:3]
+    
+    def date_to_gregorian(year, month, day):
+        jd = JD(year, month, day)
+        rgd = RJDg(jd)
+        return rgd
+    
+    
+    # algorithms for the proleptic Julian calendar until -4712
+    def _is_julian_leapyear(self, year):
+        """
+        Check if a given year is a leap year in the (proleptic) Julian calendar
+        
+        This funtion assumes counting of BCE years starts at zero.
+        1 BCE (0) is a leap year.
+    
+        Parameters
+        ----------
+        year : int
+            DESCRIPTION.
+    
+        Returns
+        -------
+        leapyear : Boolean
+            True if year is a leap year
+    
+        """
+        return year % 4 == 0
+    
+    def _JD0(self, j_year, j_month, j_day):
+        """
+        Given a Julian date, compute the day number.
+        Handles negative dates.
+        0 is at 1-1-0.
+    
+        Parameters
+        ----------
+        gryear : int
+            Year in the Gregorian calendar.
+        grmonth : int
+            Month in the Gregorian calendar.
+        grday : int
+            Day in the Gregorian calendar.
+    
+        Returns
+        -------
+        float
+            The Julian day number in the Julian calendar corresponding to the
+            Gregorian date
+        """
+        y = j_year -1 
+        ord = 365 * y + y // 4
+        ord += (367 * j_month - 362) // 12 
+        if j_month > 2:
+            if self._is_julian_leapyear(j_year):
+                ord -= 1
+            else:
+                ord -= 2
+        ord += j_day
+        return ord 
+    
+    def _JD(self, j_year, j_month, j_day):
+        return self._JD0(j_year, j_month, j_day) + self.JD0
+    
+    def _RJD(self, jd):
+        """
+        Given a JD number, compute the corresponding Julian Date.
+        
+        RGD(GD(y, m, d)) is an invariant. This function can be used to
+        compute a proleptic Gregorian date corresponding to a Julian date.
+    
+        Parameters
+        ----------
+        gd : float
+             Day number.
+    
+        Returns
+        -------
+        The Gregorian date.
+    
+        TYPE: 3-tuple if type int (year, month, day)
+        """
+        d = jd - self.JD0 - 1
+        year = (4 * d + 1464) // 1461
+        year = int(year)
+        p = d - self._JD0(year, 1, 0)
+        if self._is_julian_leapyear(year):
+            if p < 60:
+                c = 0
+            else:
+                c = 1
+        else:
+            if p < 59:
+                c = 0
+            else:
+                c=2
+        m = (12 * (p + c ) + 373) // 367
+        d = d - self._JD0(year, m, 0) + 1
+        return (year, int(m), int(d))
