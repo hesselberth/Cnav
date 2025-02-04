@@ -448,7 +448,7 @@ def JJD(j_year, j_month, j_day):
     return ord 
 
 JDALIGN = JD(-4712, 1, 1) - JJD(-4712, 1, 1)
-print(JDALIGN)
+
 def JDj(j_year, j_month, j_day):
     return JJD(j_year, j_month, j_day) + JDALIGN
 
@@ -501,7 +501,7 @@ class Calendar:
     Julian = 1
     gregorian = 2
     mixed = 3
-    JD0 = 1721422.5
+    JD0 = 1721423  # 22.5 for midnight
     GD0 = JD0 + 2
     MAXYEAR = 9999
     
@@ -509,33 +509,35 @@ class Calendar:
         self.setDefault()
 
     def setDefault(self):
-        self.setMixed(1582, 10, 5)
+        self.setMixed(1582, 10, 15)
 
     def setJulian(self):
-        #self._align(2000, 1, 1.5, JD2000)
-        self._gregorian_reform_date = DateTuple(self.MAXYEAR, 12, 31)
+        self._gregorian_reform_date = DateTuple(self.MAXYEAR+1, 1, 1)
+        self.reform = 1, -1  # no ValueError
 
     def setGregorian(self):
-        #self._align(2000, 1, 1.5, JD2000)
         self._gregorian_reform_date = DateTuple(-4712, 1, 1)
+        self.reform = -1, -1
 
-    def setMixed(self, j_year, j_month, j_day):
-        assert (type(j_year) == int and type(j_month) == int and type(j_day) == int)
-        assert (j_year >= 200 and 1 <= j_month <= 12 and j_day >= 1)
-        assert ((j_year, j_month, j_day) >= (200, 3, 1))  # ensure unique dates
-        dmax = mdays[j_month]
-        if j_month == 2 and self._is_julian_leapyear(j_year) \
-            and self._is_gregorian_leapyear(j_year):
+    def setMixed(self, g_year, g_month, g_day):
+        assert (type(g_year) == int and type(g_month) == int and type(g_day) == int)
+        assert (g_year >= 200 and 1 <= g_month <= 12 and g_day >= 1)
+        assert ((g_year, g_month, g_day) >= (200, 3, 1))  # ensure unique dates
+        dmax = mdays[g_month]
+        if g_month == 2 and self._is_julian_leapyear(g_year) \
+            and self._is_gregorian_leapyear(g_year):
                 dmax += 1
-        assert(j_day <= dmax)
-        self._gregorian_reform_date = DateTuple(j_year, j_month, j_day)
+        assert(g_day <= dmax)
+        self._gregorian_reform_date = DateTuple(g_year, g_month, g_day)
+        jdl = self._GD(g_year, g_month, g_day)
+        jdh = self._JD(g_year, g_month, g_day)
+        self.reform = jdl, jdh
 
     def JD(self, year, month, day):
-        print(self._gregorian_reform_date)
         assert (type(year) == int and type(month) == int and type(day) == int)
         assert (-4712 <= year <= self.MAXYEAR and 1 <= month <= 12 and day >= 1)
         dmax = mdays[month]
-        if (year, month, day) >= self._gregorian_reform_date:  # Gregorian
+        if self.is_gregorian(year, month, day):
             if month == 2 and self._is_gregorian_leapyear(year):
                 dmax += 1
             assert(day <= dmax)
@@ -543,10 +545,24 @@ class Calendar:
         if self._is_julian_leapyear(year):
             dmax += 1
         assert(day <= dmax)
-        return self._JD(year, month, day)
+        jd = self._JD(year, month, day)
+        jdl, jdh = self.reform
+        if jd >= jdl and jd < jdh:
+            raise ValueError(f"Nonexistant date ({year}-{month}-{day})")
+        return jd
     
-    def RJD(self, year, month, day):
-        pass
+    def RJD(self, jd):
+        if jd >= self.reform[0]:
+            return self._RGD(jd)
+        return self._RJD(jd)
+
+    def is_gregorian(self, year, month, day):
+        return (year, month, day) >= self._gregorian_reform_date
+
+    def is_leapyear(self, year):
+        if self.is_gregorian(year, 2, 29):
+            return self._is_gregorian_leapyear(year)
+        return self._is_julian_leapyear(year)
 
     def _is_gregorian_leapyear(self, year):
         """
@@ -721,7 +737,6 @@ class Calendar:
         return ord
     
     def _JD(self, j_year, j_month, j_day):
-        print("_JD")
         return self._JD0(j_year, j_month, j_day) + self.JD0
     
     def _RJD(self, jd):
@@ -760,13 +775,10 @@ class Calendar:
         d = d - self._JD0(year, m, 0) + 1
         return (year, int(m), int(d))
 
-d1 = DateTuple(1, 2, 3)
-print(d1<(1,2,4))
 cal = Calendar()
-#cal.setGregorian()
-cal.setJulian()
-#cal.setMixed(1780, 4, 1)
-date = (1582, 10, 4)
-jd = cal._JD(*date)
-print(cal.JD(*date), cal._GD(*date))
-print(cal._RJD(jd), cal._RGD(jd))
+#cal.setJulian()
+cal.setGregorian()
+#cal.setMixed(500, 3, 3)
+date = (-4712, 1, 1)
+jd = cal.JD(*date)
+print(cal.RJD(jd), cal.JD(*date))
