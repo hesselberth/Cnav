@@ -1046,3 +1046,4 @@ if __name__ == '__main__':
     print(t, type(t.resolution))
     print(Date.fromGregorian(1582,10,14))
     cal = Calendar()
+    print(Date.fromisocalendar(2013, 1, 7))

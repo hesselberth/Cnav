@@ -7,9 +7,14 @@ Created on Sat Jan 11 20:57:17 2025
 """
 
 import numpy as np
+from math import floor
 from cnav.constants import MJD0, SPD, wdays, JD2000, mdays
 from cnav.cnumba import cnjit
 from collections import namedtuple
+from operator import index as _index
+
+MINYEAR = -4712
+MAXYEAR = 9999
 
 DateTuple = namedtuple("datetuple", ["year", "month", "day"])
 
@@ -564,6 +569,78 @@ class Calendar:
             return self._is_gregorian_leapyear(year)
         return self._is_julian_leapyear(year)
 
+    # 0 is sunday, 1 is monday etc.
+    def weekday(self, jd):  # jd is a julian day number without time
+        return int((jd + 1.5)) % 7
+    
+    # Three character day string
+    def weekday_str(self, jd):
+        return wdays[self.weekday(jd)]
+    
+    def isoweekday(self, jd):
+        return int((jd + 0.5)) % 7 + 1
+
+    def I2G(self, year, week, day):
+        for var in year, week, day:
+            if not isinstance(var, int):
+                raise TypeError
+        if not MINYEAR <= year <= MAXYEAR and 1 <= day <= 7:
+            raise ValueError
+        if not 1 <= week <= 1 or self._iso_weeks_in_year(year):
+            raise ValueError
+        # jd of 1-1 of the year containing thursday of week
+        jd_1_1 = self._GD(year, 1, 1)
+        # ISO weekday of jan_1 of year containing thursday of week
+        weekday_1_1 = self.isoweekday(jd_1_1)
+        # day in january of first thursday of year of thursday of week
+        first_thursday = int((4 - weekday_1_1)) % 7 + 1
+        # jd of first thursday of year containing thursday of week
+        jd_first_thursday = self._GD(year, 1, first_thursday)
+        # number of days to date, counted from 1st thursday of year
+        days_from_first_thursday = 7 * (week - 1) + day - 4
+        # jd of gregorian date
+        jd = jd_first_thursday + days_from_first_thursday  
+        return self._RGD(jd)
+
+    def G2I(self, gr_year, gr_month, gr_day):  # TODO: check values
+        if not is_gregorian(gr_year, gr_month, gr_day):
+            raise ValueError("iso date not Gregorian, change calendar setting")
+        year, month, date = self._check_date_fields(gr_year, gr_month, gr_day)
+        jd = self._GD(gr_year, gr_month, gr_day)
+        iso_weekday = self.isoweekday(jd)
+        jd_thursday = jd + 4 - iso_weekday
+        iso_year, m, d = self._RGD(jd_thursday)
+        jd_1_1 = self._GD(iso_year, 1, 1)
+        weekday_1_1 = self.isoweekday(jd_1_1)
+        first_thursday = (4 - weekday_1_1) % 7 + 1
+        jd_first_thursday = self._GD(iso_year, 1, first_thursday)
+        iso_weeknum = (jd_thursday - jd_first_thursday) // 7 + 1
+        return (iso_year, iso_weeknum, iso_weekday)
+
+    def _check_date_fields(year, month, day):
+        year = _index(year)
+        month = _index(month)
+        day = _index(day)
+        if not MINYEAR <= year <= MAXYEAR:
+            raise ValueError('year must be in %d..%d' % (MINYEAR, MAXYEAR), year)
+        if not 1 <= month <= 12:
+            raise ValueError('month must be in 1..12', month)
+        dmax = mdays[month]
+        if month == 2 and is_leapyear(year):
+            dmax += 1
+        if not 1 <= day <= dmax:
+            raise ValueError('day must be in 1..%d' % dmax, day)
+        return year, month, day
+
+
+    def _iso_weeks_in_year(year):
+        py = year + floor(year/4) - floor(year/100) + floor(year/400)
+        y = year - 1
+        pym1 = y + floor(y/4) - floor(y/100) + floor(y/400)
+        if (py % 7 == 4 ) or ( pym1 % 7 == 3 ):
+            return 53
+        return 52
+
     def _is_gregorian_leapyear(self, year):
         """
         Check if a given year is a leap year in the (proleptic)
@@ -777,8 +854,9 @@ class Calendar:
 
 cal = Calendar()
 #cal.setJulian()
-cal.setGregorian()
+#cal.setGregorian()
 #cal.setMixed(500, 3, 3)
-date = (-4712, 1, 1)
+date = (2025, 2, 4)
 jd = cal.JD(*date)
 print(cal.RJD(jd), cal.JD(*date))
+print(cal.I2G(2013, 1, 1))
