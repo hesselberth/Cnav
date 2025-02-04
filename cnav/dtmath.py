@@ -7,8 +7,8 @@ Created on Sat Jan 11 20:57:17 2025
 """
 
 import numpy as np
-from .constants import MJD0, SPD, wdays, JD2000
-from .cnumba import cnjit
+from cnav.constants import MJD0, SPD, wdays, JD2000, mdays
+from cnav.cnumba import cnjit
 from collections import namedtuple
 
 DateTuple = namedtuple("datetuple", ["year", "month", "day"])
@@ -502,36 +502,52 @@ class Calendar:
     gregorian = 2
     mixed = 3
     JD0 = 1721422.5
+    GD0 = JD0 + 2
+    MAXYEAR = 9999
     
     def __init__(self):
-        pass
+        self.setDefault()
 
     def setDefault(self):
-        self.JD = self._JD
-        self.calendar = self.default
+        self.setMixed(1582, 10, 5)
 
     def setJulian(self):
-        self.JD = self._JD
-        self.RJD = self._RJD
+        #self._align(2000, 1, 1.5, JD2000)
+        self._gregorian_reform_date = DateTuple(self.MAXYEAR, 12, 31)
 
     def setGregorian(self):
-        self.align_gregorian(2000, 1, 1.5, JD2000)
-        self.JD = self._GD
-        self.RJD = self._RGD
+        #self._align(2000, 1, 1.5, JD2000)
+        self._gregorian_reform_date = DateTuple(-4712, 1, 1)
 
-    def setMixed(self):
-        self.calendar = self.mixed
-    
-    def _align(self, year, month, day, jd):
-        gd = self._GD0(year, month, day)
-        self.g_epoch = jd - gd
+    def setMixed(self, j_year, j_month, j_day):
+        assert (type(j_year) == int and type(j_month) == int and type(j_day) == int)
+        assert (j_year >= 200 and 1 <= j_month <= 12 and j_day >= 1)
+        assert ((j_year, j_month, j_day) >= (200, 3, 1))  # ensure unique dates
+        dmax = mdays[j_month]
+        if j_month == 2 and self._is_julian_leapyear(j_year) \
+            and self._is_gregorian_leapyear(j_year):
+                dmax += 1
+        assert(j_day <= dmax)
+        self._gregorian_reform_date = DateTuple(j_year, j_month, j_day)
 
     def JD(self, year, month, day):
-        pass
+        print(self._gregorian_reform_date)
+        assert (type(year) == int and type(month) == int and type(day) == int)
+        assert (-4712 <= year <= self.MAXYEAR and 1 <= month <= 12 and day >= 1)
+        dmax = mdays[month]
+        if (year, month, day) >= self._gregorian_reform_date:  # Gregorian
+            if month == 2 and self._is_gregorian_leapyear(year):
+                dmax += 1
+            assert(day <= dmax)
+            return self._GD(year, month, day)
+        if self._is_julian_leapyear(year):
+            dmax += 1
+        assert(day <= dmax)
+        return self._JD(year, month, day)
     
     def RJD(self, year, month, day):
         pass
-        
+
     def _is_gregorian_leapyear(self, year):
         """
         Check if a given year is a leap year in the (proleptic)
@@ -591,10 +607,8 @@ class Calendar:
         ord += gr_day
         return ord
     
-    GDALIGN = JD(2000, 1, 1) - GD(2000, 1, 1)
-    
     def _GD(self, gr_year, gr_month, gr_day):
-        return self._GD0(gr_year, gr_month, gr_day) + self.g_epoch
+        return self._GD0(gr_year, gr_month, gr_day) + self.GD0
     
     def _RGD(self, jd):
         """
@@ -614,7 +628,7 @@ class Calendar:
     
         TYPE: 3-tuple if type int (year, month, day)
         """
-        d = jd - self.g_epoch - 1
+        d = jd - self.GD0 - 1
         n400 = d // 146097
         d1 = d % 146097
         n100 = d1 // 36524
@@ -695,7 +709,7 @@ class Calendar:
             The Julian day number in the Julian calendar corresponding to the
             Gregorian date
         """
-        y = j_year -1 
+        y = j_year - 1 
         ord = 365 * y + y // 4
         ord += (367 * j_month - 362) // 12 
         if j_month > 2:
@@ -704,9 +718,10 @@ class Calendar:
             else:
                 ord -= 2
         ord += j_day
-        return ord 
+        return ord
     
     def _JD(self, j_year, j_month, j_day):
+        print("_JD")
         return self._JD0(j_year, j_month, j_day) + self.JD0
     
     def _RJD(self, jd):
@@ -744,3 +759,14 @@ class Calendar:
         m = (12 * (p + c ) + 373) // 367
         d = d - self._JD0(year, m, 0) + 1
         return (year, int(m), int(d))
+
+d1 = DateTuple(1, 2, 3)
+print(d1<(1,2,4))
+cal = Calendar()
+#cal.setGregorian()
+cal.setJulian()
+#cal.setMixed(1780, 4, 1)
+date = (1582, 10, 4)
+jd = cal._JD(*date)
+print(cal.JD(*date), cal._GD(*date))
+print(cal._RJD(jd), cal._RGD(jd))

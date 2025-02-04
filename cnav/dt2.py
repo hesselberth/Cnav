@@ -1047,6 +1047,10 @@ if __name__ == '__main__':
     print(Date.fromGregorian(1582,10,14))
     cal = Calendar()
     print(cal._GD(1600,1,1), cal._RGD(cal._GD(1600,1,1)), JD(2000, 1, 1))
-    cal.align_gregorian(2000, 1, 1.5, 2451545)
+    cal._align(2000, 1, 1.5, 2451545)
     print(cal._GD(1600,1,1), cal._RGD(cal._GD(1600,1,1)), JD(1600, 1, 1))
+    from dtmath import DateTuple
+    d1 = DateTuple(2, 3, 3)
+    d2 = DateTuple(2, 2, 3300)
+    print(d1>d2)
     
