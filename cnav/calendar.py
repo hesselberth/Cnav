@@ -971,17 +971,16 @@ class Calendar:
         Parameters
         ----------
         gryear : int
-            Year in the Gregorian calendar.
+
         grmonth : int
-            Month in the Gregorian calendar.
+
         grday : int
-            Day in the Gregorian calendar.
+
 
         Returns
         -------
-        float
-            The Julian day number in the Julian calendar corresponding to the
-            Gregorian date
+        int
+            The day number corresponding to the Gregorian date
         """
         y = gr_year - 1
         ord = 365 * y + y // 4 - y // 100 + y // 400
@@ -1001,19 +1000,17 @@ class Calendar:
         """
         Given a JD number, compute the corresponding Gregorian Date.
 
-        RJDg(JDg(y, m, d)) is an invariant. This function can be used to
+        RGD(GD(y, m, d)) is an invariant. This function can be used to
         compute a proleptic Gregorian date corresponding to a Julian date.
 
         Parameters
         ----------
-        gd : float
+        jd : int
              Day number.
 
         Returns
         -------
-        The Gregorian date.
-
-        TYPE: 3-tuple if type int (year, month, day)
+        Gregorian date.
         """
         d = jd - self.GD0 - 1
         n400 = d // 146097
@@ -1065,13 +1062,11 @@ class Calendar:
         Parameters
         ----------
         year : int
-            DESCRIPTION.
 
         Returns
         -------
-        leapyear : Boolean
+        Boolean
             True if year is a leap year
-
         """
         return year % 4 == 0
 
@@ -1083,16 +1078,16 @@ class Calendar:
 
         Parameters
         ----------
-        gryear : int
-            Year in the Gregorian calendar.
-        grmonth : int
-            Month in the Gregorian calendar.
-        grday : int
-            Day in the Gregorian calendar.
+        j_year : int
+
+        j_grmonth : int
+
+        j_grday : int
+
 
         Returns
         -------
-        float
+        int
             The Julian day number in the Julian calendar corresponding to the
             Gregorian date
         """
@@ -1114,19 +1109,18 @@ class Calendar:
         """
         Given a JD number, compute the corresponding Julian Date.
 
-        RGD(GD(y, m, d)) is an invariant. This function can be used to
+        RJD(JD(y, m, d)) is an invariant. This function can be used to
         compute a proleptic Gregorian date corresponding to a Julian date.
 
         Parameters
         ----------
-        gd : float
+        jd : int
              Day number.
 
         Returns
         -------
-        The Gregorian date.
-
         TYPE: 3-tuple if type int (year, month, day)
+        Julian date.
         """
         d = jd - self.JD0 - 1
         year = (4 * d + 1464) // 1461
