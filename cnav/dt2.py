@@ -7,7 +7,7 @@ Created on Tue Jan 14 13:13:23 2025
 """
 
 from cnav.constants import months, MJD0, SPD, mdays
-from cnav.dtmath import JD, RJD, MJD, RMJD, weekday_str, weekday_nr, is_gregorian, date_from_gregorian, Calendar
+from cnav.calendar import Calendar, bisect
 import re
 import numpy as np
 from functools import total_ordering, cached_property
@@ -94,23 +94,6 @@ class DTMeta(type):
 
 def _get_class_module(self):
     return self.__class__.__module__
-
-def _check_date_fields(year, month, day):
-    year = _index(year)
-    month = _index(month)
-    day = _index(day)
-    if not MINYEAR <= year <= MAXYEAR:
-        raise ValueError('year must be in %d..%d' % (MINYEAR, MAXYEAR), year)
-    if not 1 <= month <= 12:
-        raise ValueError('month must be in 1..12', month)
-    dim = mdays[month]
-    if month == 2 and is_leapyear(year):
-        dim += 1
-    if not 1 <= day <= dim:
-        raise ValueError('day must be in 1..%d' % dim, day)
-    if year == 1582 and month == 10 and day > 4 and day < 15:
-        raise (ValueError("Invalid date (Gregorian reform)"))
-    return year, month, day
 
 def _check_time_fields(hour, minute, second, nanosecond, fold):
     hour = _index(hour)
