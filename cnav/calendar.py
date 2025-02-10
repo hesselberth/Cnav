@@ -39,6 +39,30 @@ leap years julian days have a different date. Therefore the last days in 9999
 can not be converted from Julian to Gregorian as the result will be in 10.000.
 """
 
+class IsoCalendarDate(tuple):
+    def __new__(cls, year, week, weekday, /):
+        return super().__new__(cls, (year, week, weekday))
+
+    @property
+    def year(self):
+        return self[0]
+
+    @property
+    def week(self):
+        return self[1]
+
+    @property
+    def weekday(self):
+        return self[2]
+
+    def __reduce__(self):
+        return (tuple, (tuple(self),))
+
+    def __repr__(self):
+        return (f'{self.__class__.__name__}'
+                f'(year={self[0]}, week={self[1]}, weekday={self[2]})')
+
+
 class Calendar:
     default = 0
     julian = 1
@@ -121,8 +145,8 @@ class Calendar:
 
     def JD(self, year, month, day):
         """
-        Julian day number of the given date according to the
-        currently set calendar.
+        Julian day number and calendar of the given date according to the
+        current setting.
 
         Parameters
         ----------
@@ -145,12 +169,12 @@ class Calendar:
         """
         year, month, day = self._check_date_fields(year, month, day)
         if self.is_gregorian(year, month, day):
-            return self._GD(year, month, day)
+            return self._GD(year, month, day), True
         jd = self._JD(year, month, day)
         jdl, jdh = self.reform
         if jd >= jdl and jd < jdh:
             raise ValueError(f"nonexistant date ({year}-{month}-{day})")
-        return jd
+        return jd, False
 
     def RJD(self, jd):
         """
@@ -178,11 +202,11 @@ class Calendar:
         year, month, day = self._check_date_fields(year, month, day)
         return (year, month, day)
     
-    def MJD(self, year, month, day):
-        return self.JD(year, month, day) - MJD0
+    def MJD(self, jd):
+        return jd - MJD0
 
-    def RMJD(self, jd):
-        return self.RJD(jd + MJD0)
+    def RMJD(self, mjd):
+        return mjd + MJD0
 
     # must go to date
     def TJC(self, tt, tt2=0.0):

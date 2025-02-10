@@ -11,9 +11,6 @@ from cnav.calendar import *
 import pytest
 
 
-cal = Calendar()
-
-
 def test_is_gregorian():
     cal = Calendar()
     assert(cal.is_gregorian(-5000, 1, 1) is False)
@@ -34,23 +31,24 @@ def test_is_gregorian():
 
 def test_JD():
     cal = Calendar()
-    assert(cal.JD(2025,   1, 11)   == 2460687 )
-    assert(cal.JD(2000,   1, 1)  == 2451545   )
-    assert(cal.JD(1999,   1, 1)    == 2451180 )
-    assert(cal.JD(1987,   1, 27)   == 2446823 )
-    assert(cal.JD(1987,   6, 19) == 2446966   )
-    assert(cal.JD(1988,   1, 27)   == 2447188 )
-    assert(cal.JD(1988,   6, 19) == 2447332   )
-    assert(cal.JD(1900,   1, 1)    == 2415021 )
-    assert(cal.JD(1600,   1, 1)    == 2305448 )
-    assert(cal.JD(1600,  12, 31)   == 2305813 )
-    assert(cal.JD(837,    4, 10) == 2026872 )
-    assert(cal.JD(-123,  12, 31)   == 1676497 )
-    assert(cal.JD(-122,   1, 1)    == 1676498 )
-    assert(cal.JD(-1000,  7, 12) == 1356001 )
-    assert(cal.JD(-1000,  2, 29)   == 1355867 )
-    assert(cal.JD(-1001,  8, 18) == 1355672 )
-    assert(cal.JD(-4712,  1, 1)  == 0       )
+    
+    assert(cal.JD(2025,   1, 11)   == 2460687, True )
+    assert(cal.JD(2000,   1, 1)  == 2451545, True   )
+    assert(cal.JD(1999,   1, 1)    == 2451180, True )
+    assert(cal.JD(1987,   1, 27)   == 2446823, True )
+    assert(cal.JD(1987,   6, 19) == 2446966, True   )
+    assert(cal.JD(1988,   1, 27)   == 2447188, True )
+    assert(cal.JD(1988,   6, 19) == 2447332, True   )
+    assert(cal.JD(1900,   1, 1)    == 2415021, True )
+    assert(cal.JD(1600,   1, 1)    == 2305448, True)
+    assert(cal.JD(1600,  12, 31)   == 2305813, True)
+    assert(cal.JD(837,    4, 10) == 2026872, False)
+    assert(cal.JD(-123,  12, 31)   == 1676497, False)
+    assert(cal.JD(-122,   1, 1)    == 1676498, False)
+    assert(cal.JD(-1000,  7, 12) == 1356001, False)
+    assert(cal.JD(-1000,  2, 29)   == 1355867, False)
+    assert(cal.JD(-1001,  8, 18) == 1355672, False)
+    assert(cal.JD(-4712,  1, 1)  == 0, False)
 
 def test_MJD():
     cal = Calendar()
@@ -63,7 +61,7 @@ def test_JD_RJD_invariant():
     for i in range(1721057, 2634166):  # year 0 until 2500
         jd = i
         year, month, day = cal.RJD(jd)
-        jd2 = cal.JD(year, month, day)
+        jd2 = cal.JD(year, month, day)[0]
         assert(jd==jd2)
 
 def test_calendar_reform():
@@ -95,12 +93,12 @@ def test_RMJD():
 
 def test_weekday():
     cal = Calendar()
-    jd = cal.JD(2025, 1, 12)
+    jd = cal.JD(2025, 1, 12)[0]
     assert( cal.weekday(jd) == 0 )
 
 def test_weekday_str():
     cal = Calendar()
-    jd = cal.JD(2025, 1, 11)
+    jd = cal.JD(2025, 1, 11)[0]
     assert( cal.weekday_str(jd) == "Saturday" )
 
 def test_bisect(): 
